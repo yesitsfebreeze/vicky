@@ -19,7 +19,7 @@ install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
 
 **Method 1: Clone from GitHub**
 ```bash
-git clone https://github.com/sayhe/vicky ~/.claude/plugins/vicky
+git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
 cd ~/.claude/plugins/vicky
 npm install
 ```
