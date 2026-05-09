@@ -2,6 +2,11 @@
 
 Demand-driven knowledge base for Claude Code. Auto-enriches answers when gaps detected.
 
+Tell your Agent to:
+```
+install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
+```
+
 ## What it does
 
 - Query local KB (conclusions + sources)
