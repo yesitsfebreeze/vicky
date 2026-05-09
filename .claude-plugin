@@ -35,6 +35,17 @@
         "timeout": 10,
         "captureOutput": true
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "name": "vicky-check-pending",
+        "description": "Check for pending research and auto-trigger processing",
+        "command": "node",
+        "args": ["./.claude/skills/vicky/auto-research.mjs"],
+        "timeout": 5,
+        "captureOutput": true,
+        "background": true
+      }
     ]
   },
   "skills": [
@@ -68,7 +79,11 @@
     "autoEnrichDefault": true,
     "autoResearchGaps": true,
     "researchQueueProcessThreshold": 5,
-    "systemPromptInject": true
+    "systemPromptInject": true,
+    "systemPrompt": {
+      "enabled": true,
+      "text": "Vicky KB: Before answering, check for pending research via the 'research' MCP tool. If pending items exist, process them automatically."
+    }
   },
   "directories": {
     "src": "src",
