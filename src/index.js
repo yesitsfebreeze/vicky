@@ -11,6 +11,8 @@ import * as relink      from './tools/relink.js';
 import * as research    from './tools/research.js';
 import * as enqueue     from './tools/enqueue.js';
 import * as webSearch   from './tools/web-research.js';
+import * as promote     from './tools/promote.js';
+import * as completeResearch from './tools/complete-research.js';
 
 // Load config with defaults
 let config = {
@@ -49,6 +51,8 @@ relink.register(server, notify);
 research.register(server, notify);
 enqueue.register(server);
 webSearch.register(server, notify);
+promote.register(server);
+completeResearch.register(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
