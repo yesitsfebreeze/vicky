@@ -2,11 +2,19 @@
 
 Demand-driven knowledge base for coding agents. Auto-enriches answers when gaps detected.
 
-Tell your Agent to:
-```
-install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/INSTALL.md
-update https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/UPDATE.md
-```
+## Quick Start
+
+### For Claude Code users
+
+**Install:** Follow [agents/claude/install.md](agents/claude/install.md)
+
+**Update:** Follow [agents/claude/update.md](agents/claude/update.md)
+
+### For other agents
+
+Use generic install/update guides:
+- **Install:** [INSTALL.md](INSTALL.md)
+- **Update:** [UPDATE.md](UPDATE.md)
 
 ## What it does
 
@@ -16,40 +24,53 @@ update https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/UPDATE.md
 - Enrich conclusions on-demand
 - Zero config, zero setup
 
-## Installation
+## Installation (Claude Code)
 
-See [INSTALL.md](INSTALL.md) for multiple installation methods:
-- Clone from GitHub
-- Copy from local dev
-- Manual setup
-- Minimal tools (curl + tar)
+1. **Clone:**
+   ```bash
+   git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
+   cd ~/.claude/plugins/vicky
+   npm install
+   ```
 
-Choose the method that fits your setup. Requires Node.js 18+ and npm.
+2. **Create manifest:**
+   ```bash
+   cat > ~/.claude/plugins/vicky/.claude-plugin << 'EOF'
+   {
+     "name": "vicky",
+     "version": "0.2.0",
+     "description": "Demand-driven knowledge base: auto-enrich via research-gap",
+     "mcp": {
+       "command": "node",
+       "args": ["src/index.js"]
+     }
+   }
+   EOF
+   ```
 
-## Update
+3. **Restart Claude Code**
 
-Keep Vicky current. See [UPDATE.md](UPDATE.md) for:
-- Updating via git
-- Rolling back to a specific commit
-- Troubleshooting update issues
+4. **Test:** `/vic:research-gap "test question"`
+
+See [agents/claude/install.md](agents/claude/install.md) for detailed troubleshooting.
 
 ## Usage
 
 ### Commands
 - `/vic:research-gap "question"` — Query KB → found: return context | gap: auto-enqueue research
 - `/vic:research` — Process pending gaps, enrich KB
-- `/vic:remember "title"` — Save findings to vault (auto-callable after web search)
-- `/vic:enqueue "question"` — Manual queue (usually auto-done)
-- `/vic:relink` — Rebuild knowledge graph links
+- `/vic:remember "title"` — Save findings to vault
+- `/vic:enqueue "question"` — Manual queue
+- `/vic:query "question"` — Direct KB query
 
 ### Workflow
-1. **Ask a question** (any question in your work)
-2. **Vicky auto-checks KB** via `research-gap` tool
+1. Ask a question in Claude Code
+2. Vicky auto-checks KB
    - Found? → Returns answer + sources
    - Gap? → Auto-queues for research
-3. **Run `/vic:research`** when ready (or manually via `/vic:web-search`)
-4. **After web search**, call `/vic:remember` with findings
-5. **Next time**, same question returns from KB
+3. Run `/vic:research` when ready
+4. Call `/vic:remember "title"` with findings
+5. Next time, same question returns from KB
 
 ## Architecture
 
@@ -58,29 +79,37 @@ Keep Vicky current. See [UPDATE.md](UPDATE.md) for:
 ├── sources/              # Markdown files from web research
 ├── conclusions/          # Synthesized KB (queries + links)
 ├── pending/              # Queued research questions
-└── graphs/               # JSON knowledge graphs (requires graphify)
+└── graphs/               # JSON knowledge graphs
 ```
 
 ## Requirements
 
 - **Node.js** 18+
-- **graphify CLI** (optional, for enhanced KB querying)
+- **npm** 9+
+- Claude Code or other coding agent
+
+## Optional
+
+- **graphify CLI** (for enhanced KB querying)
   - Install: `npm install -g @anthropics/graphify`
-  - Without it: plugin still works via text search fallback
+  - Without it: text search fallback works
 
 ## How it works
 
-1. On session start: Hook runs `init.mjs` → creates `.vicky/` structure
-2. Skill registers commands: `/vic:*` prefix
-3. MCP server provides 7 tools
-4. Questions auto-check KB (no manual invocation needed)
-5. Gaps auto-queue until you run `/vic:research`
-6. KB grows from real questions, not busywork
+1. **Init:** Creates `.vicky/` structure on first use
+2. **Tools:** MCP server provides 7 tools
+3. **Auto-check:** Questions trigger KB lookup
+4. **Queue:** Gaps auto-queue until `/vic:research` runs
+5. **Grow:** KB grows from real questions in your project
 
 ## Dependencies
 
 - `@modelcontextprotocol/sdk` — MCP protocol
 - `zod` — Input validation
+
+## Updates
+
+Keep up-to-date: [agents/claude/update.md](agents/claude/update.md)
 
 ## License
 
