@@ -1,6 +1,6 @@
 # Installation Guide
 
-Vicky is a Claude Code plugin. Install it in your `.claude/plugins/` directory.
+Vicky is an MCP plugin for coding agents. Install it in your `.claude/plugins/` directory.
 
 ## Choose your method
 
@@ -39,21 +39,21 @@ npm install
 
 - **Node.js** 18 or later
 - **npm** 9 or later
-- **Claude Code** session with project folder open
+- Coding agent session with project folder open
 
 ## Verification
 
-1. Restart Claude Code
+1. Restart your agent or session
 2. Open a project folder
 3. Vicky initializes on session start
-4. Check status bar or run: `/vic:research-gap "test question"`
+4. Test: `/vic:research-gap "test question"`
 
 ## Troubleshooting
 
 **Plugin not found:**
 - Verify directory: `~/.claude/plugins/vicky`
 - Check `.claude-plugin` file exists
-- Restart Claude Code
+- Restart your agent/session
 
 **MCP server error:**
 - Verify Node.js version: `node --version` (needs 18+)

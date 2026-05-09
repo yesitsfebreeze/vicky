@@ -1,10 +1,11 @@
 # Vicky KB Plugin
 
-Demand-driven knowledge base for Claude Code. Auto-enriches answers when gaps detected.
+Demand-driven knowledge base for coding agents. Auto-enriches answers when gaps detected.
 
 Tell your Agent to:
 ```
-install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
+install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/INSTALL.md
+update https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/UPDATE.md
 ```
 
 ## What it does
