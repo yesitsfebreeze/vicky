@@ -2,6 +2,11 @@
 
 Demand-driven knowledge base. Auto-enriches project answers when gaps detected.
 
+Tell your Agent to:
+```
+install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
+```
+
 ## What it does
 
 - Queries local KB (conclusions + sources graphs)
