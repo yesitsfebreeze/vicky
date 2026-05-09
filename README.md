@@ -15,27 +15,22 @@ install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
 - Enrich conclusions on-demand
 - Zero config, zero setup
 
-## Install
+## Installation
 
-**Method 1: Clone from GitHub**
-```bash
-git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
-cd ~/.claude/plugins/vicky
-npm install
-```
+See [INSTALL.md](INSTALL.md) for multiple installation methods:
+- Clone from GitHub
+- Copy from local dev
+- Manual setup
+- Minimal tools (curl + tar)
 
-**Method 2: Copy from local dev**
-```bash
-cp -r ~/dev/vicky ~/.claude/plugins/vicky
-cd ~/.claude/plugins/vicky
-npm install
-```
+Choose the method that fits your setup. Requires Node.js 18+ and npm.
 
-**Verify Installation:**
-1. Restart Claude Code
-2. Open a project folder
-3. Session starts → Vicky auto-initializes (check status bar)
-4. Run: `/vic:research-gap "test question"`
+## Update
+
+Keep Vicky current. See [UPDATE.md](UPDATE.md) for:
+- Updating via git
+- Rolling back to a specific commit
+- Troubleshooting update issues
 
 ## Usage
 
