@@ -74,8 +74,8 @@ mcp__vicky__remember "Subdivision key insights"
 
 ## How it works
 
-1. Install plugin → `.claude-plugin` manifest registered
-2. Restart Claude Code → MCP server auto-loads
+1. Agent-specific install (see `INSTALL.md` for your agent)
+2. MCP server registered → auto-loads on session start
 3. Call `mcp__vicky__research_gap "question"` directly
 4. Vicky checks local KB (`.vicky/conclusions/`)
    - Found? → Return context + sources
@@ -83,7 +83,14 @@ mcp__vicky__remember "Subdivision key insights"
 5. Run `mcp__vicky__research` to process queue
 6. Tools enrich KB for future questions
 
-Zero setup. No skill invocation. No slash commands. Just call MCP tools directly.
+Zero setup. Just call MCP tools directly.
+
+## Agent-Specific Installation
+
+Each agent has its own install script:
+- **Claude Code:** See `agents/claude/INSTALL.md`
+- **Claude API:** See `agents/api/INSTALL.md`
+- **Other agents:** See `INSTALL.md` (generic guide)
 
 ## Architecture
 
