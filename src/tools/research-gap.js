@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { SRC_GRAPH, CON_GRAPH, SRC } from '../conf.js';
+import { SRC_GRAPH, CON_GRAPH, SRC, CON } from '../conf.js';
 import { query_graph } from '../graph.js';
-import { save_note, list_pending } from '../vault.js';
+import { search, enqueue_research, list_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
 
 export function register(server, notify) {
@@ -14,12 +14,19 @@ export function register(server, notify) {
 	}, async ({ question, auto_research = true }) => {
 		await ensure_init();
 
-		// Query KB
+		// Query KB with graph first
 		const [con, src] = await Promise.all([
 			query_graph(question, CON_GRAPH),
 			query_graph(question, SRC_GRAPH),
 		]);
-		const parts = [con, src].filter(Boolean);
+		let parts = [con, src].filter(Boolean);
+
+		// Fallback to vault text search if graph query empty
+		if (!parts.length) {
+			const vault_con = search(CON, question);
+			const vault_src = search(SRC, question);
+			parts = [vault_con, vault_src].filter(Boolean);
+		}
 
 		// Found answer - return it
 		if (parts.length) {
@@ -39,26 +46,20 @@ export function register(server, notify) {
 			);
 
 			if (!alreadyEnqueued) {
-				const timestamp = new Date().toISOString().split('T')[0];
-				const summary = `**Question:** ${question}\n\n**Status:** Auto-enqueued for web research\n**Date:** ${timestamp}`;
-				save_note(`web-research-${question}`, summary, {
-					dir: SRC,
-					tags: ['web-research', 'auto-enqueued'],
-					type: 'web-research'
-				});
-				notify('info', `vicky: auto-enqueued web research for "${question}"`);
+				enqueue_research(question);
+				notify('info', `vicky: auto-enqueued research for "${question}"`);
 
 				return {
 					content: [{
 						type: 'text',
-						text: `✗ Knowledge gap: "${question}"\n\nAuto-enqueued for web research. Run /vic:research next to fill gap.`
+						text: `✗ Knowledge gap: "${question}"\n\nAuto-enqueued for research. Run /vic:research to process.`
 					}]
 				};
 			} else {
 				return {
 					content: [{
 						type: 'text',
-						text: `✗ Knowledge gap: "${question}"\n\nAlready enqueued for web research. Run /vic:research to process.`
+						text: `✗ Knowledge gap: "${question}"\n\nAlready enqueued for research. Run /vic:research to process.`
 					}]
 				};
 			}
