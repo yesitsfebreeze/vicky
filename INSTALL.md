@@ -1,37 +1,45 @@
 # Installation Guide
 
-Vicky is an MCP plugin for coding agents. Install it in your `.claude/plugins/` directory.
+Vicky is an MCP plugin for coding agents. Install it in your agent's plugins directory.
+
+## Plugin directory by agent
+
+Replace `<PLUGIN_DIR>` with your agent's plugins directory:
+- **Claude Code**: `~/.claude/plugins/vicky`
+- **Other agents**: `~/.agent/plugins/vicky`, `~/.config/agent/plugins/vicky`, or equivalent
+
+Check your agent's documentation for the correct plugins directory.
 
 ## Choose your method
 
 ### Method 1: Clone from GitHub (recommended)
 
 ```bash
-git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
-cd ~/.claude/plugins/vicky
+git clone https://github.com/yesitsfebreeze/vicky <PLUGIN_DIR>/vicky
+cd <PLUGIN_DIR>/vicky
 npm install
 ```
 
 ### Method 2: Copy from local development
 
 ```bash
-cp -r ~/dev/vicky ~/.claude/plugins/vicky
-cd ~/.claude/plugins/vicky
+cp -r ~/dev/vicky <PLUGIN_DIR>/vicky
+cd <PLUGIN_DIR>/vicky
 npm install
 ```
 
 ### Method 3: Manual setup
 
-1. Create directory: `~/.claude/plugins/vicky`
+1. Create directory: `<PLUGIN_DIR>/vicky`
 2. Copy all files from repo into that directory
 3. Run: `npm install` inside the plugin directory
 
 ### Method 4: Use curl + tar (minimal tools)
 
 ```bash
-mkdir -p ~/.claude/plugins/vicky
-curl -L https://github.com/yesitsfebreeze/vicky/archive/refs/heads/main.tar.gz | tar xz -C ~/.claude/plugins/vicky --strip-components=1
-cd ~/.claude/plugins/vicky
+mkdir -p <PLUGIN_DIR>/vicky
+curl -L https://github.com/yesitsfebreeze/vicky/archive/refs/heads/main.tar.gz | tar xz -C <PLUGIN_DIR>/vicky --strip-components=1
+cd <PLUGIN_DIR>/vicky
 npm install
 ```
 
@@ -51,23 +59,46 @@ npm install
 ## Troubleshooting
 
 **Plugin not found:**
-- Verify directory: `~/.claude/plugins/vicky`
-- Check `.claude-plugin` file exists
+- Verify directory: `<PLUGIN_DIR>/vicky` exists
+- Check plugin config file exists (`.claude-plugin` for Claude Code, or equivalent)
 - Restart your agent/session
 
 **MCP server error:**
 - Verify Node.js version: `node --version` (needs 18+)
 - Reinstall deps: `npm install`
-- Check permissions on `.claude/plugins/vicky`
+- Check permissions on `<PLUGIN_DIR>/vicky`
 
 **Vault not creating:**
 - Plugin needs write access to project directory
 - Try opening a different project folder
 - Check file system permissions
 
+## Plugin registration by agent
+
+After installation, agents need to register Vicky differently:
+
+### Claude Code
+
+Plugin auto-discovered in `~/.claude/plugins/vicky` via `.claude-plugin` manifest.
+
+### Other agents
+
+Check your agent's documentation for plugin registration:
+- Environment variables (e.g., `MCP_PLUGINS_PATH`)
+- Config file (e.g., `settings.json`, `config.toml`)
+- CLI flags (e.g., `--plugin-dir`)
+- Manual MCP server registration
+
+Vicky exposes an MCP server via `src/index.js`. Your agent needs to:
+1. Point to the installed plugin directory
+2. Start the MCP server: `node <PLUGIN_DIR>/vicky/src/index.js`
+3. Register the 7 available tools
+
+See [MCP protocol docs](https://modelcontextprotocol.io) for your agent's integration method.
+
 ## Custom installation path
 
-If not using `~/.claude/plugins/vicky`, update the MCP server path in `.claude-plugin` to your chosen location.
+Update your agent's plugin path configuration to point to your chosen location. See your agent's documentation for how to register plugins.
 
 ## Next steps
 
