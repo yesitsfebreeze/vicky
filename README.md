@@ -17,61 +17,73 @@ install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
 
 ## Install
 
-**Local (recommended):**
+**Prerequisites:** Node.js 18+, npm 9+
+
+**Setup:**
 ```bash
-cp -r ~/dev/vicky ~/.claude/plugins/vicky
+git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
 cd ~/.claude/plugins/vicky
 npm install
-```
-
-**Or git-based:**
-Add to `~/.claude/settings.json`:
-```json
+cat > .claude-plugin << 'EOF'
 {
-  "extraKnownMarketplaces": {
-    "vicky": {
-      "source": {
-        "source": "github",
-        "repo": "sayhe/vicky"
-      }
-    }
+  "name": "vicky",
+  "version": "0.2.0",
+  "mcp": {
+    "command": "node",
+    "args": ["src/index.js"]
   }
 }
+EOF
 ```
 
 **Verify:**
 1. Restart Claude Code
-2. Open project
-3. SessionStart hook → auto-init
-4. Run: `/vic:research-gap "test"`
+2. Open project in Claude Code
+3. Test: `mcp__vicky__research_gap "What is adaptive subdivision?"`
 
 ## Usage
 
-Ask a question → `/vic:research-gap "question"` auto-runs
-- **Found?** Returns KB context
+Call MCP tools directly in any Claude Code prompt:
+
+```
+mcp__vicky__research_gap "What is Phase 5 subdivision?"
+```
+
+- **Found?** Returns KB context + sources
 - **Gap?** Auto-enqueues research
 
-Run `/vic:research` to process gaps → enriches KB for next time.
+Process gaps when ready:
+```
+mcp__vicky__research
+```
+
+Save findings:
+```
+mcp__vicky__remember "Subdivision key insights"
+```
 
 ## Tools
 
 | Tool | Purpose |
 |------|---------|
-| `/vic:research-gap "q"` | Query KB, auto-enqueue gaps |
-| `/vic:research` | Process gap queue, enrich conclusions |
-| `/vic:remember "title"` | Save findings to vault |
-| `/vic:enqueue "q"` | Manual queue (usually auto-done) |
+| `mcp__vicky__research_gap "q"` | Query KB, auto-enqueue gaps |
+| `mcp__vicky__research` | Process gap queue, enrich conclusions |
+| `mcp__vicky__remember "title"` | Save findings to vault |
+| `mcp__vicky__query "q"` | Direct KB lookup |
+| `mcp__vicky__enqueue "q"` | Manual queue |
 
 ## How it works
 
-1. SessionStart hook calls `init()` → creates vault if missing
-2. Skill auto-available with usage instructions
-3. MCP research-gap is default query interface
-4. Questions check KB automatically
-5. Gaps accumulate until `/vic:research` processes them
-6. Knowledge base grows from failures, not noise
+1. Install plugin → `.claude-plugin` manifest registered
+2. Restart Claude Code → MCP server auto-loads
+3. Call `mcp__vicky__research_gap "question"` directly
+4. Vicky checks local KB (`.vicky/conclusions/`)
+   - Found? → Return context + sources
+   - Gap? → Auto-queue in `.vicky/pending/`
+5. Run `mcp__vicky__research` to process queue
+6. Tools enrich KB for future questions
 
-No external config needed. No CLAUDE.md dependency. Just works.
+Zero setup. No skill invocation. No slash commands. Just call MCP tools directly.
 
 ## Architecture
 
