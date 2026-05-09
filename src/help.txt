@@ -1,0 +1,14 @@
+# Vicky 🧠
+
+- init        > create vault + extract code graph
+- query       > BFS graph + vault search
+- remember    > save note to vault
+- recall      > search vault notes
+- extract     > refresh code graph
+- help        > print this file
+
+Graphify [help](https://raw.githubusercontent.com/safishamsi/graphify/refs/heads/v7/README.md
+): `graphify --help`
+
+Obsidian [help](https://github.com/obsidianmd/obsidian-help/tree/master/en
+): `obsidian --help`

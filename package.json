@@ -1,0 +1,32 @@
+{
+  "name": "vicky",
+  "version": "0.2.0",
+  "description": "Vicky KB: demand-driven knowledge base. Auto-enrich answers when gaps detected.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": { "vicky": "src/index.js" },
+  "scripts": {
+    "start": "node src/index.js",
+    "init": "node ~/.claude/skills/vicky/init.mjs"
+  },
+  "keywords": [
+    "knowledge-base",
+    "research",
+    "demand-driven",
+    "auto-enrich",
+    "gap-detection"
+  ],
+  "author": "sayhe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sayhe/vicky"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

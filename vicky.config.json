@@ -1,0 +1,34 @@
+{
+  "name": "vicky",
+  "version": "0.2.0",
+  "autoEnrichDefault": true,
+  "autoResearchGaps": true,
+  "researchQueueProcessThreshold": 5,
+  "description": "Demand-driven KB: auto-enrich answers via /vic:research-gap",
+  "systemPrompt": {
+    "enabled": true,
+    "text": "Vicky KB active. For knowledge questions: use /vic:research-gap \"question\". Returns context or auto-enqueues research. No manual steps needed. Run /vic:research to process gaps."
+  },
+  "hooks": {
+    "preChatCompletion": {
+      "enabled": true,
+      "description": "Auto-suggest /vic:research-gap for knowledge questions"
+    },
+    "postQuery": {
+      "enabled": true,
+      "description": "Suggest /vic:research when gaps detected"
+    },
+    "periodicResearch": {
+      "enabled": false,
+      "interval": "0 */4 * * *",
+      "description": "Auto-run /vic:research every 4 hours (optional)"
+    }
+  },
+  "behavior": {
+    "autoEnqueueGaps": true,
+    "deduplicatePending": true,
+    "suggestResearchAfterNGaps": 5,
+    "clearProcessedResearch": false,
+    "discoveryTopics": true
+  }
+}

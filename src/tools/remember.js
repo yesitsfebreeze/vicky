@@ -1,0 +1,22 @@
+import { z } from 'zod';
+import { join } from 'path';
+import { SRC } from '../conf.js';
+import { save_note } from '../vault.js';
+import { ensure_init } from '../init.js';
+
+export function register(server) {
+	server.registerTool('remember', {
+		description: 'Save key points or findings from a conversation into the source vault',
+		inputSchema: {
+			title:   z.string().describe('Topic title'),
+			content: z.string().describe('Key points or findings (markdown)'),
+			folder:  z.string().optional().describe('Subfolder inside vicky/ (e.g. "nanite", "physics")'),
+			tags:    z.array(z.string()).optional().describe('Tags'),
+		},
+	}, async ({ title, content, folder, tags = [] }) => {
+		await ensure_init();
+		const dir = folder ? join(SRC, folder) : SRC;
+		const path = save_note(title, content, { dir, tags, type: 'source' });
+		return { content: [{ type: 'text', text: `Saved: ${path}` }] };
+	});
+}

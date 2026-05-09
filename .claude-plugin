@@ -1,0 +1,89 @@
+{
+  "name": "vicky",
+  "displayName": "Vicky KB",
+  "version": "0.2.0",
+  "description": "Demand-driven knowledge base. Auto-enrich answers when gaps detected. SessionStart bootstraps vault, auto-processes research gaps.",
+  "author": "sayhe",
+  "license": "MIT",
+  "repository": "https://github.com/sayhe/vicky",
+  "homepage": "https://github.com/sayhe/vicky#readme",
+  "keywords": [
+    "knowledge-base",
+    "research",
+    "demand-driven",
+    "auto-enrich",
+    "gap-detection"
+  ],
+  "main": "src/index.js",
+  "bin": {
+    "vicky": "src/index.js"
+  },
+  "mcpServers": {
+    "vicky": {
+      "command": "node",
+      "args": ["./src/index.js"],
+      "description": "Vicky MCP: demand-driven KB auto-enrich"
+    }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "name": "vicky-auto-init",
+        "description": "Auto-initialize vicky KB on session start",
+        "command": "node",
+        "args": ["C:/Users/sayhe/.claude/skills/vicky/init.mjs"],
+        "timeout": 10,
+        "captureOutput": true
+      }
+    ]
+  },
+  "skills": [
+    {
+      "name": "vicky",
+      "path": "~/.claude/skills/vicky/SKILL.md",
+      "description": "Vicky KB: demand-driven knowledge base"
+    }
+  ],
+  "features": {
+    "autoBootstrap": true,
+    "autoEnrich": true,
+    "autoResearchGaps": true,
+    "demandDriven": true,
+    "zeroSetup": true
+  },
+  "capabilities": [
+    "knowledge-graph-queries",
+    "gap-detection",
+    "auto-research-enqueue",
+    "vault-management",
+    "conclusion-enrichment"
+  ],
+  "engine": ">=1.0.0",
+  "nodeVersion": ">=18.0.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.0.0"
+  },
+  "config": {
+    "autoEnrichDefault": true,
+    "autoResearchGaps": true,
+    "researchQueueProcessThreshold": 5,
+    "systemPromptInject": true
+  },
+  "directories": {
+    "src": "src",
+    "tools": "src/tools",
+    "vault": ".vicky"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "init": "node .claude/skills/vicky/init.mjs"
+  },
+  "activationEvents": [
+    "onSessionStart",
+    "onCommand:/vic:research-gap",
+    "onCommand:/vic:research",
+    "onCommand:/vic:remember",
+    "onCommand:/vic:enqueue"
+  ]
+}

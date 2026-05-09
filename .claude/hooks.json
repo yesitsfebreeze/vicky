@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "name": "vicky-auto-init",
+        "description": "Auto-initialize vicky KB on session start",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sayhe/.claude/skills/vicky/init.mjs\"",
+            "timeout": 10,
+            "captureOutput": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "name": "vicky-auto-check",
+        "description": "Suggest /vic:research when gaps accumulate",
+        "enabled": true
+      }
+    ]
+  }
+}
