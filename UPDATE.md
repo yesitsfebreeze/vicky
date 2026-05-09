@@ -1,92 +1,47 @@
-# Update Guide
+# Updating Vicky
 
-Keep Vicky up to date. Multiple methods supported.
+## Choose your agent
 
-## Check current version
+### Claude Code
+See [`agents/claude/update.md`](agents/claude/update.md) for update procedures.
+
+### Claude API (Python/Node.js)
+See [`agents/api/update.md`](agents/api/update.md) for SDK updates.
+
+### Generic Update
 
 ```bash
-cd ~/.claude/plugins/vicky
-git log -1 --oneline
-```
-
-## Method 1: Update via git (simplest)
-
-```bash
-cd ~/.claude/plugins/vicky
+cd ~/.vicky  # or wherever you installed Vicky
 git fetch origin main
 git pull origin main
 npm install
 ```
 
-## Method 2: Update to specific commit
+Then restart your agent.
+
+## Rollback
+
+If an update breaks something:
 
 ```bash
-cd ~/.claude/plugins/vicky
-git fetch origin main
-git checkout <COMMIT_HASH>
-npm install
-```
-
-Example:
-```bash
-git checkout c43a08c  # Auto-research setup
-git checkout 6d7658b  # Fix GitHub repo name
-```
-
-## Method 3: Fresh install (nuke and rebuild)
-
-```bash
-rm -rf ~/.claude/plugins/vicky
-git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
-cd ~/.claude/plugins/vicky
-npm install
-```
-
-## Method 4: Manual update (no git)
-
-1. Download latest from GitHub: https://github.com/yesitsfebreeze/vicky/archive/refs/heads/main.zip
-2. Extract to temp location
-3. Copy files over existing `~/.claude/plugins/vicky` (skip `.vicky/` directory)
-4. Run: `npm install`
-
-## Verify update
-
-```bash
-cd ~/.claude/plugins/vicky
-npm list
-git log -1
-```
-
-Restart Claude Code and test:
-```
-/vic:research-gap "test"
-```
-
-## Rollback to previous version
-
-If update breaks something:
-
-```bash
-cd ~/.claude/plugins/vicky
+cd ~/.vicky
 git log --oneline -10  # Find previous commit
-git checkout <PREVIOUS_COMMIT_HASH>
+git checkout <HASH>
 npm install
 ```
 
-Then restart Claude Code.
+Restart your agent.
 
-## What updates include
+## Check version
 
-- Bug fixes and improvements to tools
-- New commands and features
-- Updated documentation
-- Performance improvements
-- Dependency updates
+```bash
+cd ~/.vicky
+git log -1 --oneline
+npm list
+```
 
-Check [CHANGELOG](CHANGELOG.md) (if available) for details on each release.
+## Staying updated
 
-## Staying informed
-
-- Watch GitHub repo for releases
-- Check commit history: `git log --oneline`
-- Monitor issues: https://github.com/yesitsfebreeze/vicky/issues
+- **GitHub releases:** https://github.com/yesitsfebreeze/vicky/releases
+- **Commit history:** `git log --oneline`
+- **Issues:** https://github.com/yesitsfebreeze/vicky/issues

@@ -21,7 +21,9 @@
   "mcpServers": {
     "vicky": {
       "command": "node",
-      "args": ["./src/index.js"],
+      "args": [
+        "./src/index.js"
+      ],
       "description": "Vicky MCP: demand-driven KB auto-enrich"
     }
   },
@@ -31,27 +33,18 @@
         "name": "vicky-auto-init",
         "description": "Auto-initialize vicky KB on session start",
         "command": "node",
-        "args": ["./src/init.js"],
+        "args": [
+          "C:/Users/sayhe/.claude/skills/vicky/init.mjs"
+        ],
         "timeout": 10,
         "captureOutput": true
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "name": "vicky-check-pending",
-        "description": "Check for pending research and auto-trigger processing",
-        "command": "node",
-        "args": ["./src/hooks/auto-research.js"],
-        "timeout": 5,
-        "captureOutput": true,
-        "background": true
       }
     ]
   },
   "skills": [
     {
       "name": "vicky",
-      "path": "./SKILL.md",
+      "path": "~/.claude/skills/vicky/SKILL.md",
       "description": "Vicky KB: demand-driven knowledge base"
     }
   ],
@@ -79,11 +72,7 @@
     "autoEnrichDefault": true,
     "autoResearchGaps": true,
     "researchQueueProcessThreshold": 5,
-    "systemPromptInject": true,
-    "systemPrompt": {
-      "enabled": true,
-      "text": "Vicky KB: Before answering, check for pending research via the 'research' MCP tool. If pending items exist, process them automatically."
-    }
+    "systemPromptInject": true
   },
   "directories": {
     "src": "src",
@@ -95,10 +84,6 @@
     "init": "node .claude/skills/vicky/init.mjs"
   },
   "activationEvents": [
-    "onSessionStart",
-    "onCommand:/vic:research-gap",
-    "onCommand:/vic:research",
-    "onCommand:/vic:remember",
-    "onCommand:/vic:enqueue"
+    "onSessionStart"
   ]
 }

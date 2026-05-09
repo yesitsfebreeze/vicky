@@ -72,7 +72,7 @@ Restart Claude Code.
 After updating, verify in Claude Code:
 
 ```
-/vic:research-gap "test"
+mcp__vicky__research_gap "test"
 ```
 
 Should respond without errors.

@@ -56,7 +56,7 @@ EOF
 
 3. **Test in Claude Code:**
    ```
-   /vic:research-gap "What is Phase 5 subdivision?"
+   mcp__vicky__research_gap "What is Phase 5 subdivision?"
    ```
    Should respond with KB status (found/gap).
 
@@ -64,7 +64,7 @@ EOF
 
 ### MCP server not connecting
 
-**Symptom:** "MCP error" when running `/vic:research-gap`
+**Symptom:** "MCP error" when running `mcp__vicky__research_gap`
 
 **Fix:**
 1. Verify Node.js: `node --version` (needs 18+)
@@ -75,7 +75,7 @@ EOF
 
 ### Plugin not found / not auto-discovered
 
-**Symptom:** Skill not listed or `/vic:` commands not recognized
+**Symptom:** Skill not listed or MCP tools not recognized
 
 **Fix:**
 1. **Check path:** `ls -la ~/.claude/plugins/vicky/`
@@ -95,13 +95,12 @@ EOF
 
 ## Next Steps
 
-- See [SKILL.md](../../SKILL.md) for usage and available commands
-- See [update.md](update.md) for keeping Vicky current
+- See README.md for usage and available tools
+- See update.md for keeping Vicky current
 - Check [MCP protocol docs](https://modelcontextprotocol.io) for advanced configuration
 
 ## Claude Code specific features
 
 - **Auto-initialization:** Vault created automatically on first use
-- **Skill listing:** Vicky skill auto-appears in skill selector
-- **Slash commands:** `/vic:research`, `/vic:research-gap`, etc. available after install
+- **Direct MCP tools:** Call `mcp__vicky__research`, `mcp__vicky__research_gap`, `mcp__vicky__query`, `mcp__vicky__enqueue`, `mcp__vicky__remember` directly in any prompt
 - **Knowledge base:** `.vicky/` folder created in project root (add to .gitignore if desired)
