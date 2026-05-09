@@ -1,10 +1,9 @@
 import { z } from 'zod';
-import { save_note } from '../vault.js';
 import { ensure_init } from '../init.js';
 
 export function register(server, notify) {
 	server.registerTool('web-search', {
-		description: 'Web search for a question, save findings as source files. Results feed into next research pass.',
+		description: 'Initiate web search and save findings. Returns instructions for Claude to follow.',
 		inputSchema: {
 			question: z.string().describe('Question to research'),
 			context: z.string().optional().describe('Why this is important / what problem to solve'),
@@ -12,20 +11,24 @@ export function register(server, notify) {
 	}, async ({ question, context }) => {
 		await ensure_init();
 
-		// Placeholder: would call actual web search API (Google, DuckDuckGo, etc.)
-		// For now, returns stub indicating this should be researched
-		const timestamp = new Date().toISOString().split('T')[0];
-		const summary = `**Question:** ${question}\n\n${context ? `**Context:** ${context}\n\n` : ''}**Status:** Pending web research\n**Date:** ${timestamp}`;
+		const instruction = `VICKY_WEB_SEARCH_TASK:
+Question: ${question}
+${context ? `Context: ${context}` : ''}
 
-		const path = save_note(`web-research-${question}`, summary, {
-			dir: undefined, // Uses SRC by default
-			tags: ['web-research', 'pending'],
-			type: 'web-research'
-		});
+Instructions:
+1. Use your WebSearch tool to research this question thoroughly
+2. Synthesize key findings and insights
+3. Call vicky:remember with title="${question}" and the findings you discovered
 
-		const msg = `Enqueued web research: "${question}"\nPath: ${path}\n\nNote: Claude will fill in findings after web search.`;
-		notify('info', msg);
+This saves the research to Vicky's knowledge base for future queries.`;
 
-		return { content: [{ type: 'text', text: msg }] };
+		notify('info', `vicky: initiated web search for "${question}"`);
+
+		return {
+			content: [{
+				type: 'text',
+				text: instruction
+			}]
+		};
 	});
 }

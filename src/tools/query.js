@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { SRC_GRAPH, CON_GRAPH } from '../conf.js';
+import { SRC_GRAPH, CON_GRAPH, SRC, CON } from '../conf.js';
 import { query_graph } from '../graph.js';
+import { search } from '../vault.js';
 import { ensure_init } from '../init.js';
 
 export function register(server) {
@@ -13,7 +14,13 @@ export function register(server) {
 			query_graph(question, CON_GRAPH),
 			query_graph(question, SRC_GRAPH),
 		]);
-		const parts = [con, src].filter(Boolean);
+		let parts = [con, src].filter(Boolean);
+
+		if (!parts.length) {
+			const vault_con = search(CON, question);
+			const vault_src = search(SRC, question);
+			parts = [vault_con, vault_src].filter(Boolean);
+		}
 
 		if (!parts.length) {
 			return {

@@ -31,7 +31,7 @@
         "name": "vicky-auto-init",
         "description": "Auto-initialize vicky KB on session start",
         "command": "node",
-        "args": ["C:/Users/sayhe/.claude/skills/vicky/init.mjs"],
+        "args": ["./.claude/skills/vicky/init.mjs"],
         "timeout": 10,
         "captureOutput": true
       }
@@ -40,7 +40,7 @@
   "skills": [
     {
       "name": "vicky",
-      "path": "~/.claude/skills/vicky/SKILL.md",
+      "path": "./.claude/skills/vicky/SKILL.md",
       "description": "Vicky KB: demand-driven knowledge base"
     }
   ],
