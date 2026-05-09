@@ -31,7 +31,7 @@
         "name": "vicky-auto-init",
         "description": "Auto-initialize vicky KB on session start",
         "command": "node",
-        "args": ["./.claude/skills/vicky/init.mjs"],
+        "args": ["./lib/init.mjs"],
         "timeout": 10,
         "captureOutput": true
       }
@@ -41,7 +41,7 @@
         "name": "vicky-check-pending",
         "description": "Check for pending research and auto-trigger processing",
         "command": "node",
-        "args": ["./.claude/skills/vicky/auto-research.mjs"],
+        "args": ["./lib/auto-research.mjs"],
         "timeout": 5,
         "captureOutput": true,
         "background": true
@@ -51,7 +51,7 @@
   "skills": [
     {
       "name": "vicky",
-      "path": "./.claude/skills/vicky/SKILL.md",
+      "path": "./lib/SKILL.md",
       "description": "Vicky KB: demand-driven knowledge base"
     }
   ],
