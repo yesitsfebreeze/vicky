@@ -32,12 +32,6 @@ Claude Code does not auto-discover plain directories under `~/.claude/plugins/` 
 claude mcp add vicky --scope user node "$HOME/.claude/plugins/vicky/src/index.js"
 ```
 
-On Windows (Git Bash / PowerShell), pass an absolute path:
-
-```bash
-claude mcp add vicky --scope user node "C:/Users/sayhe/.claude/plugins/vicky/src/index.js"
-```
-
 Verify it is connected:
 
 ```bash
@@ -59,7 +53,7 @@ Edit `~/.claude/settings.json` and add (or merge into) a `hooks` block:
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Users/sayhe/.claude/plugins/vicky/src/init.js\"",
+            "command": "node \"$HOME/.claude/plugins/vicky/src/init.js\"",
             "timeout": 10
           }
         ]
@@ -69,7 +63,7 @@ Edit `~/.claude/settings.json` and add (or merge into) a `hooks` block:
 }
 ```
 
-Replace `C:/Users/sayhe` with your own home directory (use forward slashes on Windows; `$HOME/.claude/...` works on macOS/Linux). For project-scope activation, put the same block in `<project>/.claude/settings.json` instead.
+For project-scope activation, put the same block in `<project>/.claude/settings.json` instead.
 
 Verify the hook command works from a shell before restarting Claude Code:
 
@@ -80,7 +74,7 @@ node "$HOME/.claude/plugins/vicky/src/init.js"
 
 **Note:** Vicky auto-initializes on session start once the hook is wired. No additional registration needed.
 
-### Step 3: Verify installation
+### Step 4: Verify installation
 
 1. **Check directory:**
    ```bash
