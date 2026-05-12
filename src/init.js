@@ -10,6 +10,7 @@
 
 import { existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
+import { pathToFileURL } from 'url';
 
 export async function init() {
 	const vickyRoot = process.env.VICKY_ROOT || resolve('.vicky');
@@ -52,7 +53,7 @@ Vault: ${vickyRoot}
 }
 
 // CLI execution
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 	const result = await init();
 	console.log(JSON.stringify(result, null, 2));
 }
