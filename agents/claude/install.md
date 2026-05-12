@@ -24,25 +24,61 @@ npm install
 - **Copy from dev:** `cp -r ~/dev/vicky ~/.claude/plugins/vicky && cd ~/.claude/plugins/vicky && npm install`
 - **Download + extract:** Download from https://github.com/yesitsfebreeze/vicky/archive/refs/heads/main.zip, extract to `~/.claude/plugins/vicky`, then `npm install`
 
-### Step 2: Create `.claude-plugin` manifest (Claude Code only)
+### Step 2: Register the MCP server
 
-Claude Code auto-discovers plugins in `~/.claude/plugins/` if they have a `.claude-plugin` manifest. Create it:
+Claude Code does not auto-discover plain directories under `~/.claude/plugins/` — those slots are reserved for marketplace-installed plugins cached under `~/.claude/plugins/cache/`. Register vicky as a user-scope MCP server instead:
 
 ```bash
-cat > ~/.claude/plugins/vicky/.claude-plugin << 'EOF'
-{
-  "name": "vicky",
-  "version": "0.2.0",
-  "description": "Demand-driven knowledge base: auto-enrich via research-gap",
-  "mcp": {
-    "command": "node",
-    "args": ["src/index.js"]
-  }
-}
-EOF
+claude mcp add vicky --scope user node "$HOME/.claude/plugins/vicky/src/index.js"
 ```
 
-**Note:** Vicky plugin auto-initializes on session start. No manual registration needed in Claude Code.
+On Windows (Git Bash / PowerShell), pass an absolute path:
+
+```bash
+claude mcp add vicky --scope user node "C:/Users/sayhe/.claude/plugins/vicky/src/index.js"
+```
+
+Verify it is connected:
+
+```bash
+claude mcp list | grep vicky
+# vicky: node .../src/index.js - ✓ Connected
+```
+
+### Step 3: Add the SessionStart hook
+
+The hook runs `src/init.js`, which creates the `.vicky/` vault (sources, conclusions, pending, graphs) if missing and prints the active-skill banner.
+
+Edit `~/.claude/settings.json` and add (or merge into) a `hooks` block:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/sayhe/.claude/plugins/vicky/src/init.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Replace `C:/Users/sayhe` with your own home directory (use forward slashes on Windows; `$HOME/.claude/...` works on macOS/Linux). For project-scope activation, put the same block in `<project>/.claude/settings.json` instead.
+
+Verify the hook command works from a shell before restarting Claude Code:
+
+```bash
+node "$HOME/.claude/plugins/vicky/src/init.js"
+# → prints JSON with status: "ready"
+```
+
+**Note:** Vicky auto-initializes on session start once the hook is wired. No additional registration needed.
 
 ### Step 3: Verify installation
 
