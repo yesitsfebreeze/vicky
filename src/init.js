@@ -57,4 +57,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 	console.log(JSON.stringify(result, null, 2));
 }
 
+export const ensure_init = init;
 export default init;
