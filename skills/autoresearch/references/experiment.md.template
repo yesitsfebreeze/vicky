@@ -1,0 +1,131 @@
+# Experiments Queue
+
+Autoresearch reads this file to build task queue. Each task is an independent optimization experiment. Edit sections to queue new tasks or modify existing ones.
+
+## Task 1: Tile Subdivision Optimization
+
+**Component:** tile_subdiv (Phase 3)
+
+**Goal:** Reduce shader pass latency by optimizing tile marker distribution.
+
+**Changes:**
+- Cache tile split candidates to avoid redundant marker writes
+- Reduce warp instruction divergence in marker comparison pass
+- Unroll inner loop by 2x with early-exit heuristic
+
+**Baseline Metrics:**
+```
+tile_subdiv_pass_ms: 2.3 @ 1920x1080, zoom 0.1x
+Instructions per marker: 45 avg
+Register pressure: 78%
+```
+
+**Target:**
+- < 2.0ms (13% improvement)
+- Register pressure: < 70%
+
+**Success Criteria:**
+- Code compiles without warnings (clippy -D)
+- All existing tests pass
+- Perf improvement > 1% (measurement > noise floor)
+- Memory footprint ± 2%
+
+---
+
+## Task 2: Forward+ Light Culling
+
+**Component:** forward_plus (Phase 7)
+
+**Goal:** Increase effective light budget per tile via faster culling.
+
+**Changes:**
+- Increase max lights per tile from 32 to 64 (profiling showed headroom)
+- Use SIMD depth sort per tile (2-pass radix on 16-bit normalized depth)
+- Remove redundant overlap tests via conservative bounds
+
+**Baseline Metrics:**
+```
+light_cull_pass_ms: 1.2 @ 1920x1080, zoom 10.0x (far-field)
+Lights culled avg: 18 / 32 per tile
+Sort overhead: 0.4ms
+```
+
+**Target:**
+- < 1.0ms (17% improvement)
+- Support 48+ effective lights (up from 32)
+- Sort overhead: < 0.3ms
+
+**Success Criteria:**
+- No regressions in near-field (0.1x zoom)
+- Perf improvement > 1%
+- No visual artifacts (alpha blend order preserved)
+
+---
+
+## Task 3: Tet Mesh Compression
+
+**Component:** tet_propagation (Phase 1-2)
+
+**Goal:** Reduce GPU heap memory footprint and improve cache locality.
+
+**Changes:**
+- Pack face adjacency into 16-bit indices (was 32-bit)
+- Use packed edge codes to avoid separate adjacency texture
+- Compact implicit tet storage via BFS wavefront encoding
+
+**Baseline Metrics:**
+```
+gpu_heap_mb: 512 (1M tets @ Phase 6 LOD)
+Face adjacency texture: 256 MB
+Working set per frame: 384 MB
+```
+
+**Target:**
+- < 384 MB total (25% reduction)
+- No perf regression (cached reads faster due to density)
+
+**Success Criteria:**
+- GPU heap < 384 MB
+- Benchmark latency ± 3%
+- Phase 5+ subdivision still correct
+
+---
+
+## Task 4: Volumetric Shading LOD
+
+**Component:** volumetric_march (Phase 5 rendering)
+
+**Goal:** Reduce far-field volumetric cost by switching to surface-only shading.
+
+**Changes:**
+- Introduce --volume-radius knob (default 5.0 world units from camera)
+- Inside radius: full volumetric march
+- Outside radius: BRDF-only (disable volume trace)
+- Smooth transition: fade factor over 1 unit distance
+
+**Baseline Metrics:**
+```
+volumetric_latency: 3.8ms (full march, all distances)
+Far-field (10x zoom): 2.1ms of 3.8ms (55% far waste)
+```
+
+**Target:**
+- Full scene: < 3.0ms (20% improvement)
+- Far-field (10x zoom): < 0.8ms
+- No visual pop at --volume-radius boundary
+
+**Success Criteria:**
+- No visual artifacts at transition
+- Perf improvement > 1%
+- --volume-radius parameter stored in phynite.toml
+
+---
+
+## Notes
+
+- **Estimate:** Filled automatically by `estimate.py` based on component scope
+- **Baseline:** Captured before task execution; updated after merge
+- **Tolerance:** Default 2% variance OK (see Benchmark Scene)
+- **Benchmark Scene:** All tasks use zoom 0.1x, 1.0x, 10.0x; 5 runs per level (discard first 2)
+
+Edit, add, or remove tasks as needed. Each task is independent; scheduler fills capacity and executes in order.

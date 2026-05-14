@@ -23,29 +23,16 @@ function copy_tree(source, destination) {
 }
 
 function banner() {
-	const root = fs.root();
 	return {
 		skill: 'vicky',
 		status: 'ready',
 		instructions: [
-			'Vicky KB Active',
+			'Vicky KB scaffolded.',
+			`Vault: ${fs.root()}`,
 			'',
-			`Read ${fs.workflow_md()} first — focus, rules, routing.`,
-			'',
-			'Default behavior: questions auto-check KB via research-gap.',
-			'- Found? Returns context, focus-biased.',
-			'- Gap?   Auto-enqueues research. Run research to drain.',
-			'',
-			'Tools:',
-			'  research-gap "question"  Query KB, auto-enqueue gaps',
-			'  research                 Drain pending queue',
-			'  remember "title"         Save findings',
-			'  dashboard                KB report via Obsidian + Dataview',
-			'  dql "<query>"            Run arbitrary DQL (query="help" for syntax)',
-			'',
-			'Dashboard + DQL require Obsidian running with the vault open and Dataview enabled.',
-			`Live view: ${fs.dashboard_md()}`,
-			`Vault:     ${root}`,
+			'NEXT: invoke the `/vicky:setup` skill now to load Vicky context (tool list,',
+			'WORKFLOW.md rules, dashboard/DQL prerequisites). Do this before answering',
+			'the user\'s first question.',
 		].join('\n'),
 	};
 }

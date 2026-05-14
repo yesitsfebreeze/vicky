@@ -21114,7 +21114,6 @@ var graphs = () => join(root(), "graphs");
 var sources_graph = () => join(graphs(), "sources.json");
 var conclusions_graph = () => join(graphs(), "conclusions.json");
 var workflow_md = () => join(root(), "WORKFLOW.md");
-var dashboard_md = () => join(root(), "Dashboard.md");
 var report_md = () => join(root(), "Dashboard.report.md");
 var template_dir = () => join(SKILL_DIR, "..", "obsidian");
 var vault_name = () => process.env.OBSIDIAN_VAULT || basename(root());
@@ -21305,29 +21304,16 @@ function copy_tree(source, destination) {
   }
 }
 function banner() {
-  const root2 = root();
   return {
     skill: "vicky",
     status: "ready",
     instructions: [
-      "Vicky KB Active",
+      "Vicky KB scaffolded.",
+      `Vault: ${root()}`,
       "",
-      `Read ${workflow_md()} first \u2014 focus, rules, routing.`,
-      "",
-      "Default behavior: questions auto-check KB via research-gap.",
-      "- Found? Returns context, focus-biased.",
-      "- Gap?   Auto-enqueues research. Run research to drain.",
-      "",
-      "Tools:",
-      '  research-gap "question"  Query KB, auto-enqueue gaps',
-      "  research                 Drain pending queue",
-      '  remember "title"         Save findings',
-      "  dashboard                KB report via Obsidian + Dataview",
-      '  dql "<query>"            Run arbitrary DQL (query="help" for syntax)',
-      "",
-      "Dashboard + DQL require Obsidian running with the vault open and Dataview enabled.",
-      `Live view: ${dashboard_md()}`,
-      `Vault:     ${root2}`
+      "NEXT: invoke the `/vicky:setup` skill now to load Vicky context (tool list,",
+      "WORKFLOW.md rules, dashboard/DQL prerequisites). Do this before answering",
+      "the user's first question."
     ].join("\n")
   };
 }
