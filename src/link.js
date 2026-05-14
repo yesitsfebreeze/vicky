@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { patch_frontmatter_related } from './vault.js';
 import { query_graph } from './graph.js';
-import { SRC_GRAPH, CON_GRAPH, SRC, CON } from './conf.js';
 
 const BATCH = 10;
 

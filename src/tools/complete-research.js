@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { readFileSync, writeFileSync, unlinkSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { RES, CON } from '../conf.js';
+import * as fs from '../fs.js';
 import { ensure_init } from '../init.js';
 
 export function register(server) {
@@ -20,7 +20,7 @@ export function register(server) {
 		let filesToProcess = [];
 		if (file) {
 			const filename = file.endsWith('.md') ? file : `${file}.md`;
-			if (existsSync(join(RES, filename))) {
+			if (existsSync(join(fs.research(), filename))) {
 				filesToProcess = [filename];
 			} else {
 				return { content: [{
@@ -30,14 +30,14 @@ export function register(server) {
 			}
 		} else {
 			// Process all research files
-			if (existsSync(RES)) {
-				filesToProcess = readdirSync(RES).filter(f => f.endsWith('.md'));
+			if (existsSync(fs.research())) {
+				filesToProcess = readdirSync(fs.research()).filter(f => f.endsWith('.md'));
 			}
 		}
 
 		for (const filename of filesToProcess) {
-			const fromPath = join(RES, filename);
-			const toPath = join(CON, filename);
+			const fromPath = join(fs.research(), filename);
+			const toPath = join(fs.conclusions(), filename);
 
 			// Read content
 			const content = readFileSync(fromPath, 'utf8');

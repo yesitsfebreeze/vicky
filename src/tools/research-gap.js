@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SRC_GRAPH, CON_GRAPH, SRC, CON } from '../conf.js';
+import * as fs from '../fs.js';
 import { query_graph } from '../graph.js';
 import { search, enqueue_research, list_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
@@ -17,15 +17,15 @@ export function register(server, notify) {
 
 		// Query KB with graph first
 		const [con, src] = await Promise.all([
-			query_graph(question, CON_GRAPH),
-			query_graph(question, SRC_GRAPH),
+			query_graph(question, fs.con_graph()),
+			query_graph(question, fs.src_graph()),
 		]);
 		let parts = [con, src].filter(Boolean);
 
 		// Fallback to vault text search if graph query empty
 		if (!parts.length) {
-			const vault_con = search(CON, question);
-			const vault_src = search(SRC, question);
+			const vault_con = search(fs.conclusions(), question);
+			const vault_src = search(fs.sources(), question);
 			parts = [vault_con, vault_src].filter(Boolean);
 		}
 

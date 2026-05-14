@@ -6,15 +6,13 @@
  */
 
 import { existsSync, readdirSync } from 'fs';
-import { resolve } from 'path';
-
-const PENDING = resolve('.vicky/pending');
+import * as fs from '../fs.js';
 
 // Check if there are pending research items
 function hasPending() {
-	if (!existsSync(PENDING)) return false;
-	const items = readdirSync(PENDING);
-	return items.length > 0;
+	const dir = fs.pending();
+	if (!existsSync(dir)) return false;
+	return readdirSync(dir).length > 0;
 }
 
 // Notify Claude Code to process pending research

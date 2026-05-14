@@ -1,7 +1,6 @@
 import { exec, spawn } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
-import { SRC, CON } from './conf.js';
+import * as fs from './fs.js';
 
 const sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
 	const p = spawn(cmd, [], { shell: true, stdio: 'ignore', windowsHide: true, ...opts });
@@ -31,12 +30,12 @@ async function checkGraphify() {
 
 export const update_src = async () => {
 	if (!(await checkGraphify())) return;
-	return sh_bg('graphify update .', { cwd: resolve(SRC) });
+	return sh_bg('graphify update .', { cwd: fs.sources() });
 };
 
 export const update_con = async () => {
 	if (!(await checkGraphify())) return;
-	return sh_bg('graphify update .', { cwd: resolve(CON) });
+	return sh_bg('graphify update .', { cwd: fs.conclusions() });
 };
 
 export async function query_graph(question, graph) {

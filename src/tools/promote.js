@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
-import { RES, CON } from '../conf.js';
+import * as fs from '../fs.js';
 import { ensure_init } from '../init.js';
 
 export function register(server) {
@@ -15,8 +15,8 @@ export function register(server) {
 		await ensure_init();
 
 		const filename = file.endsWith('.md') ? file : `${file}.md`;
-		const fromDir = type === 'research' ? RES : CON;
-		const toDir = type === 'research' ? CON : RES;
+		const fromDir = type === 'research' ? fs.research() : fs.conclusions();
+		const toDir = type === 'research' ? fs.conclusions() : fs.research();
 		const fromPath = join(fromDir, filename);
 		const toPath = join(toDir, filename);
 

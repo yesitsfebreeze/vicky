@@ -8,12 +8,9 @@
  * No-op if already initialized.
  */
 
-import { existsSync, mkdirSync, readdirSync, copyFileSync, statSync } from 'fs';
-import { resolve, dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_DIR = resolve(__dirname, '..', 'obsidian');
+import { existsSync, mkdirSync, readdirSync, copyFileSync } from 'fs';
+import { join } from 'path';
+import * as fs from './fs.js';
 
 function copy_tree(src, dst) {
 	if (!existsSync(src)) return;
@@ -30,21 +27,14 @@ function copy_tree(src, dst) {
 }
 
 export async function init() {
-	const vickyRoot = process.env.VICKY_ROOT || resolve('.vicky');
+	const vickyRoot = fs.root();
 
-	const dirs = [
-		`${vickyRoot}/sources`,
-		`${vickyRoot}/conclusions`,
-		`${vickyRoot}/pending`,
-		`${vickyRoot}/graphs`
-	];
-
-	dirs.forEach(dir => {
+	for (const dir of [fs.sources(), fs.conclusions(), fs.pending(), fs.graphs()]) {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-	});
+	}
 
 	// Scaffold Obsidian / Dataview templates (idempotent, never overwrites)
-	copy_tree(TEMPLATE_DIR, vickyRoot);
+	copy_tree(fs.template_dir(), vickyRoot);
 
 	return {
 		skill: 'vicky',

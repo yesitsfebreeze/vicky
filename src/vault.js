@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { SRC, CON, RES, PENDING } from './conf.js';
+import * as fs from './fs.js';
 
 
 export function search(dir, query) {
@@ -30,7 +30,7 @@ export function search(dir, query) {
 const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
 const safe_link = t => t.replace(/["'[\]|#^\\]/g, '').trim();
 
-export function save_note(title, body, { dir = SRC, tags = [], type = 'source' } = {}) {
+export function save_note(title, body, { dir = fs.sources(), tags = [], type = 'source' } = {}) {
 	const date = new Date().toISOString().split('T')[0];
 	const safe = safe_name(title);
 	mkdirSync(dir, { recursive: true });
@@ -40,13 +40,13 @@ export function save_note(title, body, { dir = SRC, tags = [], type = 'source' }
 }
 
 export const save_research = (question, body) =>
-	save_note(question, body, { dir: RES, tags: ['research'], type: 'research' });
+	save_note(question, body, { dir: fs.research(), tags: ['research'], type: 'research' });
 
 export function enqueue_research(question, { context = '', requested_by = '', priority = 'med' } = {}) {
 	const date = new Date().toISOString().split('T')[0];
 	const safe = safe_name(question);
-	mkdirSync(PENDING, { recursive: true });
-	const path = join(PENDING, `${safe}.md`);
+	mkdirSync(fs.pending(), { recursive: true });
+	const path = join(fs.pending(), `${safe}.md`);
 	if (existsSync(path)) return path;
 	const body = `---
 title: ${safe}
@@ -69,12 +69,12 @@ ${context}
 }
 
 export function list_pending() {
-	if (!existsSync(PENDING)) return [];
-	return readdirSync(PENDING).filter(f => f.endsWith('.md'));
+	if (!existsSync(fs.pending())) return [];
+	return readdirSync(fs.pending()).filter(f => f.endsWith('.md'));
 }
 
 export function read_pending(file) {
-	const fp = join(PENDING, file);
+	const fp = join(fs.pending(), file);
 	const text = readFileSync(fp, 'utf8');
 	const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
 	const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
@@ -86,11 +86,12 @@ export function read_pending(file) {
 }
 
 export function delete_pending(file) {
-	const fp = join(PENDING, file);
+	const fp = join(fs.pending(), file);
 	if (existsSync(fp)) unlinkSync(fp);
 }
 
 export function list_con_files() {
+	const CON = fs.conclusions();
 	if (!existsSync(CON)) return [];
 	return readdirSync(CON).filter(f => f.endsWith('.md') && !f.startsWith('README') && !f.startsWith('_'));
 }
@@ -99,7 +100,7 @@ export function list_con_files() {
 export function find_isolated(n = 20) {
 	return list_con_files()
 		.filter(f => {
-			const text = readFileSync(join(CON, f), 'utf8');
+			const text = readFileSync(join(fs.conclusions(), f), 'utf8');
 			return !text.includes('[[') && !text.includes('## Research');
 		})
 		.slice(0, n);

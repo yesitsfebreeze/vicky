@@ -18,24 +18,9 @@
  */
 
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { basename, resolve, join } from 'path';
-
-function find_obsidian_exe() {
-	if (process.env.OBSIDIAN_EXE && existsSync(process.env.OBSIDIAN_EXE)) return process.env.OBSIDIAN_EXE;
-	const home = process.env.LOCALAPPDATA || process.env.HOME || '';
-	const candidates = [
-		`${home}\\Programs\\Obsidian\\Obsidian.exe`,
-		`${home}/Programs/Obsidian/Obsidian.exe`,
-		'/Applications/Obsidian.app/Contents/MacOS/Obsidian',
-		'/usr/bin/obsidian',
-		'/usr/local/bin/obsidian',
-	];
-	return candidates.find(p => existsSync(p)) || null;
-}
-
-const VAULT_PATH = process.env.VICKY_ROOT || resolve('.vicky');
-const VAULT_NAME = process.env.OBSIDIAN_VAULT || basename(VAULT_PATH);
+import { mkdirSync, writeFileSync } from 'fs';
+import * as fs from './fs.js';
+import { basename } from 'path';
 
 // Single eval payload — runs all queries inside Obsidian, returns one JSON blob.
 // Outer JS strings: single quotes. DQL strings inside: escaped double quotes.
@@ -57,9 +42,7 @@ function build_payload(sql) {
 }
 
 export function run_dql(sql) {
-	const exe = find_obsidian_exe();
-	if (!exe) throw new Error('Obsidian.exe not found. Set OBSIDIAN_EXE or install Obsidian.');
-	const stdout = execFileSync(exe, [`vault=${VAULT_NAME}`, 'eval', `code=${build_payload(sql)}`], {
+	const stdout = execFileSync(fs.obsidian_exe(), [`vault=${fs.vault_name()}`, 'eval', `code=${build_payload(sql)}`], {
 		encoding: 'utf8',
 		timeout: 15000,
 		windowsHide: true,
@@ -107,7 +90,7 @@ function render(data) {
 	const lines = [
 		`# Vicky Dashboard`,
 		``,
-		`Generated: ${new Date().toISOString()}  ·  Source: Dataview via Obsidian CLI  ·  Vault: \`${VAULT_NAME}\``,
+		`Generated: ${new Date().toISOString()}  ·  Source: Dataview via Obsidian CLI  ·  Vault: \`${fs.vault_name()}\``,
 		``,
 		section('Counts', data.counts),
 		section('Recent additions (last 14 days)', data.recent),
@@ -138,8 +121,8 @@ if (_entry.endsWith('dashboard.js')) {
 		if (args.includes('--json')) {
 			console.log(JSON.stringify(data, null, 2));
 		} else if (args.includes('--write')) {
-			mkdirSync(VAULT_PATH, { recursive: true });
-			const out = join(VAULT_PATH, 'Dashboard.report.md');
+			mkdirSync(fs.root(), { recursive: true });
+			const out = fs.report_md();
 			writeFileSync(out, markdown);
 			console.log(out);
 		} else {

@@ -137,8 +137,8 @@ WHERE length(file.inlinks)=0 AND length(file.outlinks)=0
 
 | Var               | Default                     | Use |
 |-------------------|-----------------------------|-----|
-| `VICKY_ROOT`      | `<cwd>/.vicky`              | Move vault outside CWD |
-| `OBSIDIAN_EXE`    | autodetected                | Custom Obsidian binary path |
+| `VICKY_ROOT`      | `.vicky`                    | Move vault outside CWD |
+| `OBSIDIAN_EXE`    | `obsidian` (from PATH)      | Override Obsidian binary |
 | `OBSIDIAN_VAULT`  | basename of `VICKY_ROOT`    | Override registered vault name |
 
 ## License

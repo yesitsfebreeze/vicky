@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import { SRC, CON, SRC_GRAPH, CON_GRAPH } from '../conf.js';
+import * as fs from '../fs.js';
 import { query_graph, list_titles_from_graph } from '../graph.js';
 import { relink_dir } from '../link.js';
 import { save_note, list_con_files, list_pending, read_pending, delete_pending } from '../vault.js';
@@ -36,15 +36,15 @@ export function register(server, notify) {
 					let drained = 0;
 					for (const pf of pending) {
 						try {
-							const conPath = join(CON, pf);
+							const conPath = join(fs.conclusions(), pf);
 							if (existsSync(conPath)) { delete_pending(pf); continue; }
 							const { question, context } = read_pending(pf);
-							const ctx = await query_graph(question, SRC_GRAPH);
+							const ctx = await query_graph(question, fs.src_graph());
 							const body = [
 								context ? `## Requested Context\n${context}` : '',
 								ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
 							].filter(Boolean).join('\n\n') || '_pending research_';
-							save_note(question, body, { dir: CON, tags: ['conclusion', 'from-queue'], type: 'conclusion' });
+							save_note(question, body, { dir: fs.conclusions(), tags: ['conclusion', 'from-queue'], type: 'conclusion' });
 							delete_pending(pf);
 							drained++;
 						} catch (e) {
@@ -59,7 +59,7 @@ export function register(server, notify) {
 					const conTitles = list_con_files().map(f => f.replace(/\.md$/, ''));
 					const norm = s => s.toLowerCase().replace(/[^\w]/g, '');
 					const conNorms = conTitles.map(norm);
-					const newTopics = list_titles_from_graph(SRC_GRAPH)
+					const newTopics = list_titles_from_graph(fs.src_graph())
 						.filter(t => t.length > 10)
 						.filter(t => {
 							const n = norm(t).slice(0, 30);
@@ -68,9 +68,9 @@ export function register(server, notify) {
 						.sort(() => Math.random() - 0.5)
 						.slice(0, Math.floor(n / 2));
 					for (const t of newTopics) {
-						const ctx = await query_graph(t, SRC_GRAPH);
+						const ctx = await query_graph(t, fs.src_graph());
 						const body = ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '_No graph context yet._';
-						save_note(t, body, { dir: CON, tags: ['conclusion'], type: 'conclusion' });
+						save_note(t, body, { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
 					}
 					if (newTopics.length) notify('info', `vicky: created ${newTopics.length} new conclusion stubs.`);
 				}
@@ -78,9 +78,9 @@ export function register(server, notify) {
 				// ② Handle explicit topic-based research
 				if (topic) {
 					const safe = topic.replace(/[^\w\s-]/g, '').trim().slice(0, 60);
-					const conPath = join(CON, `${safe}.md`);
+					const conPath = join(fs.conclusions(), `${safe}.md`);
 					if (!existsSync(conPath)) {
-						save_note(safe, '_stub_', { dir: CON, tags: ['conclusion'], type: 'conclusion' });
+						save_note(safe, '_stub_', { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
 						notify('info', `vicky: created conclusion stub for "${safe}"`);
 					}
 				}
@@ -88,8 +88,8 @@ export function register(server, notify) {
 				// ③ Relink (updates graphs + writes related: frontmatter)
 				notify('info', 'vicky: relinking...');
 				const [src, con] = await Promise.all([
-					relink_dir(SRC, SRC_GRAPH),
-					relink_dir(CON, CON_GRAPH),
+					relink_dir(fs.sources(), fs.src_graph()),
+					relink_dir(fs.conclusions(), fs.con_graph()),
 				]);
 				notify('info', `vicky done: ${src.patched + con.patched} relinked.`);
 			} catch (e) {

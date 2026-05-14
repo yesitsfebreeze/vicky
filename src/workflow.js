@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'fs';
-import { resolve } from 'path';
 
-const VICKY_ROOT = () => process.env.VICKY_ROOT || resolve('.vicky');
-const WF_PATH    = () => `${VICKY_ROOT()}/WORKFLOW.md`;
+import * as fs from './fs.js';
+const WF_PATH = () => fs.workflow_md();
 
 const DEFAULTS = {
 	active_focus: [],

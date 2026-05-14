@@ -2,7 +2,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
 
 import * as query       from './tools/query.js';
 import * as researchGap from './tools/research-gap.js';
@@ -24,7 +23,7 @@ let config = {
 };
 
 try {
-	const configPath = resolve('./vicky.config.json');
+	const configPath = './vicky.config.json';
 	const configText = readFileSync(configPath, 'utf8');
 	config = { ...config, ...JSON.parse(configText) };
 } catch (_) {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { join } from 'path';
-import { SRC } from '../conf.js';
+import * as fs from '../fs.js';
 import { save_note } from '../vault.js';
 import { ensure_init } from '../init.js';
 
@@ -15,7 +15,7 @@ export function register(server) {
 		},
 	}, async ({ title, content, folder, tags = [] }) => {
 		await ensure_init();
-		const dir = folder ? join(SRC, folder) : SRC;
+		const dir = folder ? join(fs.sources(), folder) : fs.sources();
 		const path = save_note(title, content, { dir, tags, type: 'source' });
 		return { content: [{ type: 'text', text: `Saved: ${path}` }] };
 	});
