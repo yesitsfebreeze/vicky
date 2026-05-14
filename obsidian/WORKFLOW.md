@@ -31,12 +31,12 @@ or switch workflows. Agents read this on every invocation.
 
 ### default
 
-Standard query → gap → enqueue → research → remember loop.
+Standard query → gap → enqueue → research → learn loop.
 
 1. `query` against KB
-2. If gap detected → `enqueue` with context
-3. On `research` run → fetch, synthesize, save to sources
-4. `remember` writes conclusion linking sources
+2. If gap detected → `enqueue` with context (or call `/vicky:research` directly)
+3. `/vicky:research` fetches sources for the topic and calls `learn` to absorb them
+4. `/vicky:learn` alone drains anything still pending without new fetches
 
 ### deep-dive
 

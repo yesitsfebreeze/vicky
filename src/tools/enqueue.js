@@ -4,7 +4,7 @@ import { ensure_init } from '../init.js';
 
 export function register(server) {
 	server.registerTool('enqueue', {
-		description: 'Queue a research question for the next /vic:research pass. Non-blocking — writes a pending stub that the next research pass will drain into a conclusion and enrich.',
+		description: 'Queue a research question. Non-blocking — writes a pending stub. /vicky:research fetches sources for it and absorbs; /vicky:learn drains pending without fetching.',
 		inputSchema: {
 			question: z.string().describe('The research question to investigate later'),
 			context: z.string().optional().describe('Why this is needed / surrounding context'),

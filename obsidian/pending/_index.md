@@ -5,7 +5,7 @@ scope: pending
 
 # Pending Queue
 
-Open research questions. Run `/vic:research` to drain.
+Open research questions. Run `/vicky:learn` to drain, or `/vicky:research "<topic>"` to fetch + absorb in one pass.
 
 ## By priority
 

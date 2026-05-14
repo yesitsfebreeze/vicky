@@ -9,10 +9,10 @@ import { ensure_init } from '../init.js';
 import { load_workflow } from '../workflow.js';
 
 export function register(server, notify) {
-	server.registerTool('research', {
-		description: 'Autonomous pass: drain pending queue → discover new topics → relink',
+	server.registerTool('learn', {
+		description: 'Walk the KB: drain pending queue → derive sources + conclusions → discover new topics → relink. No external fetches; this is the "connect what we already have" step. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
 		inputSchema: {
-			topic: z.string().optional().describe('Specific topic to research'),
+			topic: z.string().optional().describe('Specific topic — creates a conclusion stub instead of draining the queue'),
 			count: z.number().optional().describe('Max conclusions to process (default: 20)'),
 			force: z.boolean().optional().describe('Re-enrich conclusions that already have ## Research'),
 		},
@@ -122,6 +122,6 @@ export function register(server, notify) {
 			}
 		})();
 
-		return { content: [{ type: 'text', text: `Researching ${topic ? `"${topic}"` : `up to ${n} conclusions`} in background.` }] };
+		return { content: [{ type: 'text', text: `Learning ${topic ? `"${topic}"` : `up to ${n} conclusions`} in background.` }] };
 	});
 }

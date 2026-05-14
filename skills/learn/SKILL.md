@@ -1,11 +1,12 @@
 ---
-description: Drain the pending queue into the KB. One call promotes every pending note into a source, derives a conclusion linked to it, and rebuilds graphs. Use /vicky:learn after a /vicky:research pass, when the queue has grown, or on a schedule. Contract-enforced — the underlying `research` MCP tool guarantees the transitions, no procedural instructions to follow.
+description: Walk the KB and connect what is already there. Drains the pending queue into sources + conclusions, derives stub conclusions for newly discovered topics, and rebuilds the graph. No external fetches — for that, use /vicky:research, which calls this skill at the end of its own pipeline. Use /vicky:learn on its own when pending notes arrived from elsewhere (git pull, sibling agents, cron) and just need absorbing.
 ---
 
 # Vicky Learn
 
-Drain pending → sources → conclusions → relink. The transitions are
-enforced in code (`research` MCP tool), not in this document.
+Drain pending → sources → conclusions → relink. Pure DB walk; no web.
+The transitions are enforced in code (`learn` MCP tool), not in this
+document.
 
 Invoke: `/vicky:learn`
 
@@ -34,17 +35,19 @@ pending file is dropped without re-running the promotion.
 
 ## When to call
 
-- After `/vicky:research` enqueued follow-up questions
-- When the pending queue grows past `researchQueueProcessThreshold`
-- After `git pull` that brought new pending notes
-- Periodic — once per session, or external cron
+- Pending queue grew from sibling agents, `git pull`, or cron and you
+  want it absorbed before querying.
+- Periodic catch-up — once per session, or external schedule.
+- After bulk `enqueue` calls outside `/vicky:research`.
 
-Do not call learn for an individual question — use `research-gap` for
-that path.
+Do not call for an individual question the KB might already answer
+(use `research-gap`). Do not call when you also need fresh external
+data — use `/vicky:research`, which fetches and then invokes learn
+automatically.
 
 ## What to do after
 
-`/vicky:learn` produces stub conclusions linked to fresh sources. The
+`learn` produces stub conclusions linked to fresh sources. The
 synthesis text (`_derived from pending — fill in synthesis_`) is a
 placeholder. Open `Dashboard.md` or call `dashboard` to see the new
 hubs and orphans, then fill in the conclusion bodies as you read the
@@ -61,6 +64,7 @@ sources.
 
 ## Failure modes (handled by the tool)
 
-- **Pending note missing `## Question`** — filename is used as the question.
+- **Pending note missing `## Question`** — filename used as the question.
 - **Slug collision** with existing conclusion — pending dropped, no overwrite.
-- **graphifyy dep missing** (shouldn't happen — bundled; means `npm install` was skipped) — relinking falls back to existing graphs; promotion still runs.
+- **graphifyy dep missing** — relinking falls back to existing graphs;
+  promotion still runs.

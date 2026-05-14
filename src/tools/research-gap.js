@@ -60,14 +60,14 @@ export function register(server, notify) {
 				return {
 					content: [{
 						type: 'text',
-						text: `✗ Knowledge gap: "${question}"\n\nWorkflow: ${workflow}\nAuto-enqueued for research. Run /vic:research to process.`
+						text: `✗ Knowledge gap: "${question}"\n\nWorkflow: ${workflow}\nAuto-enqueued. Run /vicky:research "${question}" to fetch + absorb, or /vicky:learn to drain pending without fetching.`
 					}]
 				};
 			} else {
 				return {
 					content: [{
 						type: 'text',
-						text: `✗ Knowledge gap: "${question}"\n\nAlready enqueued for research. Run /vic:research to process.`
+						text: `✗ Knowledge gap: "${question}"\n\nAlready in pending queue. Run /vicky:research "${question}" to fetch + absorb, or /vicky:learn to drain.`
 					}]
 				};
 			}

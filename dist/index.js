@@ -21656,7 +21656,7 @@ ${body}`
             text: `\u2717 Knowledge gap: "${question}"
 
 Workflow: ${workflow}
-Auto-enqueued for research. Run /vic:research to process.`
+Auto-enqueued. Run /vicky:research "${question}" to fetch + absorb, or /vicky:learn to drain pending without fetching.`
           }]
         };
       } else {
@@ -21665,7 +21665,7 @@ Auto-enqueued for research. Run /vic:research to process.`
             type: "text",
             text: `\u2717 Knowledge gap: "${question}"
 
-Already enqueued for research. Run /vic:research to process.`
+Already in pending queue. Run /vicky:research "${question}" to fetch + absorb, or /vicky:learn to drain.`
           }]
         };
       }
@@ -21798,14 +21798,14 @@ function register5(server2, notify2) {
   });
 }
 
-// src/tools/research.js
+// src/tools/learn.js
 import { join as join8 } from "path";
 import { existsSync as existsSync6, readFileSync as readFileSync5 } from "fs";
 function register6(server2, notify2) {
-  server2.registerTool("research", {
-    description: "Autonomous pass: drain pending queue \u2192 discover new topics \u2192 relink",
+  server2.registerTool("learn", {
+    description: 'Walk the KB: drain pending queue \u2192 derive sources + conclusions \u2192 discover new topics \u2192 relink. No external fetches; this is the "connect what we already have" step. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
     inputSchema: {
-      topic: external_exports.string().optional().describe("Specific topic to research"),
+      topic: external_exports.string().optional().describe("Specific topic \u2014 creates a conclusion stub instead of draining the queue"),
       count: external_exports.number().optional().describe("Max conclusions to process (default: 20)"),
       force: external_exports.boolean().optional().describe("Re-enrich conclusions that already have ## Research")
     }
@@ -21908,14 +21908,14 @@ ${ctx.trim()}
         notify2("error", `vicky learn failed: ${e.message}`);
       }
     })();
-    return { content: [{ type: "text", text: `Researching ${topic ? `"${topic}"` : `up to ${n} conclusions`} in background.` }] };
+    return { content: [{ type: "text", text: `Learning ${topic ? `"${topic}"` : `up to ${n} conclusions`} in background.` }] };
   });
 }
 
 // src/tools/enqueue.js
 function register7(server2) {
   server2.registerTool("enqueue", {
-    description: "Queue a research question for the next /vic:research pass. Non-blocking \u2014 writes a pending stub that the next research pass will drain into a conclusion and enrich.",
+    description: "Queue a research question. Non-blocking \u2014 writes a pending stub. /vicky:research fetches sources for it and absorbs; /vicky:learn drains pending without fetching.",
     inputSchema: {
       question: external_exports.string().describe("The research question to investigate later"),
       context: external_exports.string().optional().describe("Why this is needed / surrounding context"),
