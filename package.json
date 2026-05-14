@@ -1,6 +1,6 @@
 {
   "name": "vicky",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Vicky KB: demand-driven knowledge base. Auto-enrich answers when gaps detected.",
   "type": "module",
   "main": "dist/index.js",
@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "graphifyy": "^0.7.5",
     "zod": "^3.0.0"
   },
   "engines": {

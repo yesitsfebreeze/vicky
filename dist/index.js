@@ -6,7 +6,13 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __commonJS = (cb, mod) => function __require() {
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __export = (target, all) => {
@@ -21122,6 +21128,7 @@ var obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === "win3
 // src/graph.js
 import { exec, spawn } from "child_process";
 import { existsSync, readFileSync } from "fs";
+import { dirname as dirname2, join as join2 } from "path";
 var sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
   const p = spawn(cmd, [], { shell: true, stdio: "ignore", windowsHide: true, ...opts });
   p.on("close", res);
@@ -21130,33 +21137,45 @@ var sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
 var sh_async = (cmd, opts = {}) => new Promise(
   (res, rej) => exec(cmd, { timeout: 6e4, encoding: "utf8", ...opts }, (err, stdout) => err ? rej(err) : res(stdout ?? ""))
 );
+var graphifyCli = null;
+try {
+  const main = __require.resolve("graphifyy");
+  graphifyCli = join2(dirname2(main), "cli.js");
+  if (!existsSync(graphifyCli)) graphifyCli = null;
+} catch {
+  graphifyCli = null;
+}
+var graphifyCmd = graphifyCli ? `node "${graphifyCli}"` : "graphify";
 var graphifyAvailable = null;
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
+  if (graphifyCli) {
+    graphifyAvailable = true;
+    return true;
+  }
   try {
-    const platform = process.platform;
-    const cmd = platform === "win32" ? "where graphify" : "which graphify";
+    const cmd = process.platform === "win32" ? "where graphify" : "which graphify";
     await sh_async(cmd);
     graphifyAvailable = true;
   } catch (_) {
     graphifyAvailable = false;
-    console.error("[vicky] graphify CLI not found. Install with: npm install -g @anthropics/graphify");
+    console.error("[vicky] graphify not found. Run `npm install` in vicky root to install the bundled `graphifyy` dep.");
   }
   return graphifyAvailable;
 }
 var update_src = async () => {
   if (!await checkGraphify()) return;
-  return sh_bg("graphify update .", { cwd: sources() });
+  return sh_bg(`${graphifyCmd} update .`, { cwd: sources() });
 };
 var update_con = async () => {
   if (!await checkGraphify()) return;
-  return sh_bg("graphify update .", { cwd: conclusions() });
+  return sh_bg(`${graphifyCmd} update .`, { cwd: conclusions() });
 };
 async function query_graph(question, graph) {
   if (!existsSync(graph)) return "";
   if (!await checkGraphify()) return "";
   try {
-    return await sh_async(`graphify query "${question}" --graph "${graph}"`);
+    return await sh_async(`${graphifyCmd} query "${question}" --graph "${graph}"`);
   } catch (_) {
     return "";
   }
@@ -21175,7 +21194,7 @@ function list_titles_from_graph(graphPath) {
 
 // src/vault.js
 import { existsSync as existsSync2, readFileSync as readFileSync2, writeFileSync, readdirSync, mkdirSync, unlinkSync } from "fs";
-import { join as join2 } from "path";
+import { join as join3 } from "path";
 function search(dir, query) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const hits = [];
@@ -21183,7 +21202,7 @@ function search(dir, query) {
     if (!existsSync2(d)) return;
     for (const e of readdirSync(d, { withFileTypes: true })) {
       if (e.name.startsWith(".")) continue;
-      const full = join2(d, e.name);
+      const full = join3(d, e.name);
       if (e.isDirectory()) {
         walk(full);
         continue;
@@ -21223,7 +21242,7 @@ function save_note(title, body, { dir = sources(), tags = [], type = "source", s
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = safe_name(title);
   mkdirSync(dir, { recursive: true });
-  const path = join2(dir, `${safe}.md`);
+  const path = join3(dir, `${safe}.md`);
   const frontmatter = [
     `title: ${safe}`,
     `date: ${date3}`,
@@ -21243,7 +21262,7 @@ function enqueue_research(question, { context = "", requested_by = "", priority 
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = safe_name(question);
   mkdirSync(pending(), { recursive: true });
-  const path = join2(pending(), `${safe}.md`);
+  const path = join3(pending(), `${safe}.md`);
   if (existsSync2(path)) return path;
   const frontmatter = [
     `title: ${safe}`,
@@ -21275,7 +21294,7 @@ function list_pending() {
   return readdirSync(pending()).filter((f) => f.endsWith(".md"));
 }
 function read_pending(file) {
-  const fp = join2(pending(), file);
+  const fp = join3(pending(), file);
   const text = readFileSync2(fp, "utf8");
   const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
   const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
@@ -21290,7 +21309,7 @@ function read_pending(file) {
   };
 }
 function delete_pending(file) {
-  const fp = join2(pending(), file);
+  const fp = join3(pending(), file);
   if (existsSync2(fp)) unlinkSync(fp);
 }
 function list_con_files() {
@@ -21320,13 +21339,13 @@ ${value}
 
 // src/init.js
 import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, copyFileSync } from "fs";
-import { join as join3 } from "path";
+import { join as join4 } from "path";
 function copy_tree(source, destination) {
   if (!existsSync3(source)) return;
   mkdirSync2(destination, { recursive: true });
   for (const entry3 of readdirSync2(source, { withFileTypes: true })) {
-    const from = join3(source, entry3.name);
-    const to = join3(destination, entry3.name);
+    const from = join4(source, entry3.name);
+    const to = join4(destination, entry3.name);
     if (entry3.isDirectory()) copy_tree(from, to);
     else if (entry3.isFile() && !existsSync3(to)) copyFileSync(from, to);
   }
@@ -21612,7 +21631,7 @@ No KB match. Use /vic:web-search "question" to research manually.`
 }
 
 // src/tools/remember.js
-import { join as join4 } from "path";
+import { join as join5 } from "path";
 function register3(server2) {
   server2.registerTool("remember", {
     description: "Save key points or findings from a conversation into the source vault",
@@ -21629,7 +21648,7 @@ function register3(server2) {
     if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
       return { content: [{ type: "text", text: "remember writes to .vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
     }
-    const dir = folder ? join4(sources(), folder) : sources();
+    const dir = folder ? join5(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
@@ -21637,7 +21656,7 @@ function register3(server2) {
 }
 
 // src/tools/conclude.js
-import { join as join5 } from "path";
+import { join as join6 } from "path";
 function register4(server2) {
   server2.registerTool("conclude", {
     description: "Save a derived conclusion into .vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
@@ -21651,7 +21670,7 @@ function register4(server2) {
     }
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
-    const dir = folder ? join5(conclusions(), folder) : conclusions();
+    const dir = folder ? join6(conclusions(), folder) : conclusions();
     const merged = Array.from(/* @__PURE__ */ new Set(["conclusion", ...tags.filter((t) => t !== "research" && t !== "pending")]));
     const path = save_note(title, content, { dir, tags: merged, type: "conclusion", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
@@ -21660,7 +21679,7 @@ function register4(server2) {
 
 // src/link.js
 import { existsSync as existsSync5, readFileSync as readFileSync4, readdirSync as readdirSync3 } from "fs";
-import { join as join6 } from "path";
+import { join as join7 } from "path";
 var BATCH = 10;
 function list_md_files(dir) {
   if (!existsSync5(dir)) return [];
@@ -21668,7 +21687,7 @@ function list_md_files(dir) {
   function walk(d) {
     for (const e of readdirSync3(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join6(d, e.name);
+      const full = join7(d, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.name.endsWith(".md")) files.push({ full, name: e.name });
     }
@@ -21723,7 +21742,7 @@ function register5(server2, notify2) {
 }
 
 // src/tools/research.js
-import { join as join7 } from "path";
+import { join as join8 } from "path";
 import { existsSync as existsSync6, readFileSync as readFileSync5 } from "fs";
 function register6(server2, notify2) {
   server2.registerTool("research", {
@@ -21756,7 +21775,7 @@ function register6(server2, notify2) {
           for (const pf of pending2) {
             try {
               const slug = pf.replace(/\.md$/, "");
-              const conPath = join7(conclusions(), pf);
+              const conPath = join8(conclusions(), pf);
               if (existsSync6(conPath)) {
                 delete_pending(pf);
                 continue;
@@ -21815,7 +21834,7 @@ ${ctx.trim()}
         }
         if (topic) {
           const safe = topic.replace(/[^\w\s-]/g, "").trim().slice(0, 60);
-          const conPath = join7(conclusions(), `${safe}.md`);
+          const conPath = join8(conclusions(), `${safe}.md`);
           if (!existsSync6(conPath)) {
             save_note(safe, "_stub_", { dir: conclusions(), tags: ["conclusion"], type: "conclusion" });
             notify2("info", `vicky: created conclusion stub for "${safe}"`);
@@ -21887,7 +21906,7 @@ This saves the research to Vicky's knowledge base for future queries.`;
 
 // src/tools/promote.js
 import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, unlinkSync as unlinkSync2, existsSync as existsSync7 } from "fs";
-import { join as join8 } from "path";
+import { join as join9 } from "path";
 function register9(server2) {
   server2.registerTool("promote", {
     description: "Move a research item from research/ to conclusions/ after findings added",
@@ -21900,8 +21919,8 @@ function register9(server2) {
     const filename = file.endsWith(".md") ? file : `${file}.md`;
     const fromDir = type === "research" ? research() : conclusions();
     const toDir = type === "research" ? conclusions() : research();
-    const fromPath = join8(fromDir, filename);
-    const toPath = join8(toDir, filename);
+    const fromPath = join9(fromDir, filename);
+    const toPath = join9(toDir, filename);
     if (!existsSync7(fromPath)) {
       return { content: [{
         type: "text",
@@ -21929,7 +21948,7 @@ function register9(server2) {
 
 // src/tools/complete-research.js
 import { readFileSync as readFileSync7, writeFileSync as writeFileSync3, unlinkSync as unlinkSync3, existsSync as existsSync8, readdirSync as readdirSync4 } from "fs";
-import { join as join9 } from "path";
+import { join as join10 } from "path";
 function register10(server2) {
   server2.registerTool("complete-research", {
     description: "Mark research as complete: checks for ## Research section, validates confidence, auto-promotes to conclusions",
@@ -21943,7 +21962,7 @@ function register10(server2) {
     let filesToProcess = [];
     if (file) {
       const filename = file.endsWith(".md") ? file : `${file}.md`;
-      if (existsSync8(join9(research(), filename))) {
+      if (existsSync8(join10(research(), filename))) {
         filesToProcess = [filename];
       } else {
         return { content: [{
@@ -21957,8 +21976,8 @@ function register10(server2) {
       }
     }
     for (const filename of filesToProcess) {
-      const fromPath = join9(research(), filename);
-      const toPath = join9(conclusions(), filename);
+      const fromPath = join10(research(), filename);
+      const toPath = join10(conclusions(), filename);
       const content = readFileSync7(fromPath, "utf8");
       const researchMatch = content.match(/^## Research\s*\n([\s\S]*?)(?=^##|$)/m);
       if (!researchMatch) {

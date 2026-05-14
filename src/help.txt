@@ -7,8 +7,8 @@
 - extract     > refresh code graph
 - help        > print this file
 
-Graphify [help](https://raw.githubusercontent.com/safishamsi/graphify/refs/heads/v7/README.md
-): `graphify --help`
+Graphify (bundled via `graphifyy` npm dep): `graphify --help`
+Docs: https://github.com/rhanka/graphify
 
 Obsidian [help](https://github.com/obsidianmd/obsidian-help/tree/master/en
 ): `obsidian --help`

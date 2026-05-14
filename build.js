@@ -9,6 +9,7 @@ const common = {
 	platform: 'node',
 	format: 'esm',
 	target: 'node18',
+	external: ['graphifyy'],
 	banner: { js: 'import { createRequire } from "module"; const require = createRequire(import.meta.url);' },
 	logLevel: 'info',
 };

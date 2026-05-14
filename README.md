@@ -15,8 +15,9 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 - Node.js 18+
 - [Obsidian](https://obsidian.md) (for `dashboard` / `dql` tools)
 - Any MCP-capable agent (Claude Code, Claude API, Cursor, etc.)
-- [graphify](https://pypi.org/project/graphifyy/) (`pip install graphifyy`) — used by `relink` for semantic graph extraction
 - LLM API key for graphify's semantic pass (see [LLM API key](#llm-api-key) below)
+
+> `graphify` ships as a bundled dependency ([graphifyy](https://www.npmjs.com/package/graphifyy) on npm). `npm install` pulls it in — no external install needed. Vicky resolves the local binary at runtime.
 
 ## Install
 
@@ -137,7 +138,7 @@ WHERE length(file.inlinks)=0 AND length(file.outlinks)=0
 
 ## LLM API key
 
-Vicky's `relink` shells out to `graphify`, which needs an LLM key for the semantic extraction pass. Without one, `relink` falls back to AST-only edges and most files end up orphaned in the graph.
+Vicky's `relink` shells out to the bundled `graphifyy` CLI, which needs an LLM key for the semantic extraction pass. Without one, `relink` falls back to AST-only edges and most files end up orphaned in the graph.
 
 Vicky reads no key itself — set the env var that graphify expects, in the **OS user environment**, so the subprocess inherits it.
 

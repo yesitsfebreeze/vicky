@@ -63,4 +63,4 @@ sources.
 
 - **Pending note missing `## Question`** — filename is used as the question.
 - **Slug collision** with existing conclusion — pending dropped, no overwrite.
-- **graphify CLI missing** — relinking falls back to existing graphs; promotion still runs.
+- **graphifyy dep missing** (shouldn't happen — bundled; means `npm install` was skipped) — relinking falls back to existing graphs; promotion still runs.
