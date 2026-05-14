@@ -1,10 +1,10 @@
 ---
-description: Docs → KB sync. Walks the repository for markdown / text documentation outside `.vicky/`, finds files that changed since the last index pass, and mirrors them into `.vicky/sources/`. Skips code, binaries, generated artefacts, and the vault itself. Use /vicky:index after editing READMEs, ADRs, or any project docs so Vicky stays current.
+description: Docs → KB sync. Walks the repository for markdown / text documentation outside `vicky/`, finds files that changed since the last index pass, and mirrors them into `vicky/sources/`. Skips code, binaries, generated artefacts, and the vault itself. Use /vicky:index after editing READMEs, ADRs, or any project docs so Vicky stays current.
 ---
 
 # Vicky Index
 
-Sync project documentation into the KB. One pass = enumerate `.md` / `.mdx` / `.rst` / `.txt` outside `.vicky/`, diff against the last index, copy changes into `.vicky/sources/`, relink.
+Sync project documentation into the KB. One pass = enumerate `.md` / `.mdx` / `.rst` / `.txt` outside `vicky/`, diff against the last index, copy changes into `vicky/sources/`, relink.
 
 Invoke: `/vicky:index`
 
@@ -22,7 +22,7 @@ Documentation only — anything that's already meant for humans:
 
 ## What we never index
 
-- `.vicky/**` — the vault itself
+- `vicky/**` — the vault itself
 - `dist/`, `build/`, `target/`, `out/`, `node_modules/`, `.git/`, `.next/`, `.cache/`
 - Any directory listed in `.gitignore`
 - Source code: `.js`, `.ts`, `.rs`, `.py`, `.go`, `.c`, `.cpp`, `.h`, `.hpp`, `.java`, `.cs`, `.rb`, etc. (use `/vicky:experiment` for code optimisation, not indexing)
@@ -31,7 +31,7 @@ Documentation only — anything that's already meant for humans:
 
 ## State
 
-`.vicky/index.json`:
+`vicky/index.json`:
 
 ```json
 {
@@ -51,10 +51,10 @@ A file is "changed" when its sha / mtime / size differs from the recorded entry.
 ## Pass outline
 
 1. **Locate root** — `git rev-parse --show-toplevel`; fall back to CWD if not a git repo.
-2. **Load previous state** — read `.vicky/index.json`; treat as empty on first run.
+2. **Load previous state** — read `vicky/index.json`; treat as empty on first run.
 3. **Enumerate candidates** — `git ls-files` (respects `.gitignore`), filter to the doc extensions above, exclude the never-index list. Optional scope arg restricts to a subtree.
 4. **Filter to changed** — compare sha/mtime/size against state. Collect (added, modified, deleted).
-5. **Mirror per file** — for each added/modified entry, write `.vicky/sources/docs/<slug>.md`:
+5. **Mirror per file** — for each added/modified entry, write `vicky/sources/docs/<slug>.md`:
 
    ```markdown
    ---
@@ -74,7 +74,7 @@ A file is "changed" when its sha / mtime / size differs from the recorded entry.
 
    For deleted files, remove the matching source note.
 
-6. **Persist state** — atomic write of new `.vicky/index.json` (write `.tmp`, rename). Record `last_commit = git rev-parse HEAD`.
+6. **Persist state** — atomic write of new `vicky/index.json` (write `.tmp`, rename). Record `last_commit = git rev-parse HEAD`.
 7. **Relink** — call the `relink` MCP tool so the new doc sources join the graph.
 8. **Report** — N added, M modified, K deleted; hint to call `/vicky:learn` if the relink produced new pending questions.
 
@@ -87,22 +87,22 @@ A file is "changed" when its sha / mtime / size differs from the recorded entry.
 | User says "vicky doesn't know about \<doc topic\>" | Likely the doc exists but is not yet in the KB |
 | Periodic — once per session, or post-`git pull` | Keep KB aligned |
 
-Don't call index for `.vicky/` edits — that's the vault itself, indexed implicitly.
+Don't call index for `vicky/` edits — that's the vault itself, indexed implicitly.
 
 ## Interactions with other skills
 
-- `/vicky:index` writes **doc sources** (`.vicky/sources/docs/`)
-- `/vicky:research` writes **web sources** (`.vicky/sources/web/`)
+- `/vicky:index` writes **doc sources** (`vicky/sources/docs/`)
+- `/vicky:research` writes **web sources** (`vicky/sources/web/`)
 - `/vicky:learn` consumes both via the pending queue + relink
 - `/vicky:experiment` is unrelated — it operates on code, not docs
 
 ## State touched
 
-- `.vicky/index.json`            updated each pass
-- `.vicky/sources/docs/*.md`     created / updated / deleted
-- `.vicky/graphs/*.json`         rebuilt via relink
+- `vicky/index.json`            updated each pass
+- `vicky/sources/docs/*.md`     created / updated / deleted
+- `vicky/graphs/*.json`         rebuilt via relink
 
-Never touches `.vicky/conclusions/` (derived) or `.vicky/pending/` (handled by `learn` / `research`).
+Never touches `vicky/conclusions/` (derived) or `vicky/pending/` (handled by `learn` / `research`).
 
 ## Idempotency
 
@@ -111,6 +111,6 @@ Re-running `/vicky:index` immediately after a successful pass produces zero file
 ## Failure modes
 
 - **Not a git repo** — fall back to mtime/size diffing; warn and continue.
-- **`.vicky/index.json` corrupt** — back up to `.vicky/index.json.bak`, treat as first run.
+- **`vicky/index.json` corrupt** — back up to `vicky/index.json.bak`, treat as first run.
 - **File >256 KB** — skip mirroring; only record sha/mtime/size so future passes still detect changes.
 - **Encoding error** — skip the file, record in the report, do not fail the pass.

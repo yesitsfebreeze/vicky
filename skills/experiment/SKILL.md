@@ -111,12 +111,9 @@ Create worktree: `git worktree add .claude/worktrees/experiment-task-<id>`
 
 Apply changes from task description, then:
 ```bash
-cargo build --release
-cargo test --release
-phynite run --scene zoom-benchmark \
-  --zoom 0.1 --zoom 1.0 --zoom 10.0 \
-  --iterations 5 --warmup 2 \
-  --capture-perf perf.json
+<build>          # e.g. cargo build --release, npm run build
+<test>           # e.g. cargo test --release, pytest
+<bench> --capture-perf perf.json   # project benchmark CLI, writes JSON
 ```
 
 Record actual execution time (wall-clock from start to finish).
@@ -224,7 +221,7 @@ Experiment complete. Worktree cleaned up.
 
 **"experiment.md not found"** — Create `experiment.md` in repo root with the format above, or specify alternate path: `/vicky:experiment docs/experiments/phase-6.md`
 
-**"Perf graph missing"** — Ensure `phynite run --capture-perf` writes valid JSON to `perf.json`. Check `test.log` for runtime errors.
+**"Perf graph missing"** — Ensure the benchmark CLI writes valid JSON to `perf.json`. Check `test.log` for runtime errors.
 
 **"Loop stuck / not scheduling"** — Check `.claude/experiment.json` for `status: "error"`. Run `/vicky:experiment status` to see current state. Use `/vicky:experiment reset` to restart.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Vault bootstrap. Creates the .vicky/ directory tree and scaffolds the
+ * Vault bootstrap. Creates the vicky/ directory tree and scaffolds the
  * Obsidian preset on first call. Idempotent — never overwrites existing
  * files. Subsequent calls return cached banner instructions without
  * touching the filesystem.

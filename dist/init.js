@@ -9,13 +9,13 @@ import { join as join2 } from "path";
 import { dirname, join, basename } from "path";
 import { fileURLToPath } from "url";
 var SKILL_DIR = dirname(fileURLToPath(import.meta.url));
-var root = () => process.env.VICKY_ROOT || ".vicky";
+var root = () => process.env.VICKY_ROOT || "vicky";
 var sources = () => join(root(), "sources");
 var conclusions = () => join(root(), "conclusions");
 var pending = () => join(root(), "pending");
 var graphs = () => join(root(), "graphs");
 var graphifyignore = () => join(root(), ".graphifyignore");
-var template_dir = () => join(SKILL_DIR, "..", "obsidian");
+var template_dir = () => join(SKILL_DIR, "..", "obsidian", ".vicky");
 
 // src/init.js
 var GRAPHIFYIGNORE = [

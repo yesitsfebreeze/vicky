@@ -10,7 +10,7 @@ import { basename as basename2 } from "path";
 import { dirname, join, basename } from "path";
 import { fileURLToPath } from "url";
 var SKILL_DIR = dirname(fileURLToPath(import.meta.url));
-var root = () => process.env.VICKY_ROOT || ".vicky";
+var root = () => process.env.VICKY_ROOT || "vicky";
 var report_md = () => join(root(), "Dashboard.report.md");
 var vault_name = () => process.env.OBSIDIAN_VAULT || basename(root());
 var obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === "win32" ? "obsidian.com" : "obsidian");

@@ -21111,7 +21111,7 @@ import { readFileSync as readFileSync7 } from "fs";
 import { dirname, join, basename } from "path";
 import { fileURLToPath } from "url";
 var SKILL_DIR = dirname(fileURLToPath(import.meta.url));
-var root = () => process.env.VICKY_ROOT || ".vicky";
+var root = () => process.env.VICKY_ROOT || "vicky";
 var sources = () => join(root(), "sources");
 var conclusions = () => join(root(), "conclusions");
 var research = () => join(root(), "research");
@@ -21123,7 +21123,7 @@ var kb_wiki = () => join(graphs(), "vicky.md");
 var graphifyignore = () => join(root(), ".graphifyignore");
 var workflow_md = () => join(root(), "WORKFLOW.md");
 var report_md = () => join(root(), "Dashboard.report.md");
-var template_dir = () => join(SKILL_DIR, "..", "obsidian");
+var template_dir = () => join(SKILL_DIR, "..", "obsidian", ".vicky");
 var vault_name = () => process.env.OBSIDIAN_VAULT || basename(root());
 var obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === "win32" ? "obsidian.com" : "obsidian");
 
@@ -21674,7 +21674,7 @@ function register3(server2) {
     inputSchema: {
       title: external_exports.string().describe("Topic title"),
       content: external_exports.string().describe("Key points or findings (markdown)"),
-      folder: external_exports.string().optional().describe('Subfolder inside .vicky/sources (e.g. "nanite", "physics")'),
+      folder: external_exports.string().optional().describe('Subfolder inside vicky/sources (e.g. "nanite", "physics")'),
       tags: external_exports.array(external_exports.string()).optional().describe("Tags"),
       sources: external_exports.array(external_exports.string()).optional().describe("Upstream sources this note derives from \u2014 written as [[wikilinks]] in body + sources: frontmatter"),
       related: external_exports.array(external_exports.string()).optional().describe("Sibling notes \u2014 written as [[wikilinks]] in body + related: frontmatter")
@@ -21682,7 +21682,7 @@ function register3(server2) {
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
     if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
-      return { content: [{ type: "text", text: "remember writes to .vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
+      return { content: [{ type: "text", text: "remember writes to vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
     }
     const dir = folder ? join5(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
@@ -21695,11 +21695,11 @@ function register3(server2) {
 import { join as join6 } from "path";
 function register4(server2) {
   server2.registerTool("conclude", {
-    description: "Save a derived conclusion into .vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
+    description: "Save a derived conclusion into vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
     inputSchema: {
       title: external_exports.string().describe("Conclusion title"),
       content: external_exports.string().describe("Synthesised takeaway (markdown)"),
-      folder: external_exports.string().optional().describe('Subfolder inside .vicky/conclusions (e.g. "perf", "physics")'),
+      folder: external_exports.string().optional().describe('Subfolder inside vicky/conclusions (e.g. "perf", "physics")'),
       tags: external_exports.array(external_exports.string()).optional().describe("Extra tags merged with `conclusion`"),
       sources: external_exports.array(external_exports.string()).optional().describe("Source note titles this conclusion derives from \u2014 required for the graph edges. Pass at least one."),
       related: external_exports.array(external_exports.string()).optional().describe("Sibling conclusions or related notes")

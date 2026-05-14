@@ -28,7 +28,7 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 /plugin install vicky@vicky
 ```
 
-Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky` skill. First session scaffolds `.vicky/{sources,conclusions,pending,graphs}` plus the Obsidian preset (`.obsidian/`, `Dashboard.md`, `WORKFLOW.md`, folder indexes).
+Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky` skill. First session scaffolds `vicky/{sources,conclusions,pending,graphs}` plus the Obsidian preset (`.obsidian/`, `Dashboard.md`, `WORKFLOW.md`, folder indexes).
 
 ### Any other MCP-capable agent
 
@@ -50,7 +50,7 @@ Register the MCP server pointing at `~/vicky/src/index.js`. Example `.mcp.json`:
 }
 ```
 
-Restart the agent. First call triggers `init()`. Open `.vicky/` in Obsidian and enable Dataview (the preset auto-installs it on first open).
+Restart the agent. First call triggers `init()`. Open `vicky/` in Obsidian and enable Dataview (the preset auto-installs it on first open).
 
 ## Update
 
@@ -58,7 +58,7 @@ Restart the agent. First call triggers `init()`. Open `.vicky/` in Obsidian and 
 cd ~/vicky && git pull && npm install
 ```
 
-Restart the agent so the MCP server reloads. `.vicky/` is yours — `init()` never overwrites existing files.
+Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` never overwrites existing files.
 
 ## Tools (MCP)
 
@@ -79,10 +79,10 @@ Restart the agent so the MCP server reloads. `.vicky/` is yours — `init()` nev
 ```
 ~/vicky/                     # the skill (clone target)
 ├── src/                     # MCP server + tools
-├── obsidian/                # template scaffolded into .vicky/ on init
+├── obsidian/                # template scaffolded into vicky/ on init
 └── README.md                # this file
 
-<your project>/.vicky/       # created by init() in each project
+<your project>/vicky/       # created by init() in each project
 ├── sources/                 # external research, papers
 ├── conclusions/             # synthesized knowledge
 ├── pending/                 # queued research questions
@@ -173,16 +173,16 @@ source ~/.zshrc
 Verify:
 
 ```bash
-graphify extract .vicky/sources --backend gemini
+graphify extract vicky/sources --backend gemini
 ```
 
-> Do **not** put the key in `.vicky/`, `vicky.config.json`, or any tracked file. It won't be read, and you risk leaking it via git.
+> Do **not** put the key in `vicky/`, `vicky.config.json`, or any tracked file. It won't be read, and you risk leaking it via git.
 
 ## Env overrides
 
 | Var               | Default                     | Use |
 |-------------------|-----------------------------|-----|
-| `VICKY_ROOT`      | `.vicky`                    | Move vault outside CWD |
+| `VICKY_ROOT`      | `vicky`                    | Move vault outside CWD |
 | `OBSIDIAN_EXE`    | `obsidian` (from PATH)      | Override Obsidian binary |
 | `OBSIDIAN_VAULT`  | basename of `VICKY_ROOT`    | Override registered vault name |
 | `GEMINI_API_KEY`  | —                           | graphify semantic extraction (see above) |

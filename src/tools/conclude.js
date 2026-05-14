@@ -6,11 +6,11 @@ import { ensure_init } from '../init.js';
 
 export function register(server) {
 	server.registerTool('conclude', {
-		description: 'Save a derived conclusion into .vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.',
+		description: 'Save a derived conclusion into vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.',
 		inputSchema: {
 			title:   z.string().describe('Conclusion title'),
 			content: z.string().describe('Synthesised takeaway (markdown)'),
-			folder:  z.string().optional().describe('Subfolder inside .vicky/conclusions (e.g. "perf", "physics")'),
+			folder:  z.string().optional().describe('Subfolder inside vicky/conclusions (e.g. "perf", "physics")'),
 			tags:    z.array(z.string()).optional().describe('Extra tags merged with `conclusion`'),
 			sources: z.array(z.string()).optional().describe('Source note titles this conclusion derives from — required for the graph edges. Pass at least one.'),
 			related: z.array(z.string()).optional().describe('Sibling conclusions or related notes'),
