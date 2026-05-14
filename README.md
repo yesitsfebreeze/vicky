@@ -15,6 +15,8 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 - Node.js 18+
 - [Obsidian](https://obsidian.md) (for `dashboard` / `dql` tools)
 - Any MCP-capable agent (Claude Code, Claude API, Cursor, etc.)
+- [graphify](https://pypi.org/project/graphifyy/) (`pip install graphifyy`) — used by `relink` for semantic graph extraction
+- LLM API key for graphify's semantic pass (see [LLM API key](#llm-api-key) below)
 
 ## Install
 
@@ -133,6 +135,46 @@ LIST FROM "conclusions" OR "sources"
 WHERE length(file.inlinks)=0 AND length(file.outlinks)=0
 ```
 
+## LLM API key
+
+Vicky's `relink` shells out to `graphify`, which needs an LLM key for the semantic extraction pass. Without one, `relink` falls back to AST-only edges and most files end up orphaned in the graph.
+
+Vicky reads no key itself — set the env var that graphify expects, in the **OS user environment**, so the subprocess inherits it.
+
+| Backend  | Env var(s)                              | Get key |
+|----------|-----------------------------------------|---------|
+| gemini   | `GEMINI_API_KEY` or `GOOGLE_API_KEY`    | <https://aistudio.google.com/apikey> |
+| openai   | `OPENAI_API_KEY`                        | <https://platform.openai.com/api-keys> |
+| claude   | `ANTHROPIC_API_KEY`                     | <https://console.anthropic.com/settings/keys> |
+| kimi     | `MOONSHOT_API_KEY`                      | <https://platform.moonshot.cn/console/api-keys> |
+| ollama   | `OLLAMA_API_KEY` + `OLLAMA_BASE_URL`    | local, any non-empty value |
+
+Auto-pick order if multiple set: `GEMINI_API_KEY → GOOGLE_API_KEY → MOONSHOT → ANTHROPIC → OPENAI`. Force a backend with `graphify extract . --backend <name>`.
+
+### Setting the key
+
+**Windows (PowerShell, persistent, no admin):**
+
+```powershell
+[Environment]::SetEnvironmentVariable('GEMINI_API_KEY', '<your-key>', 'User')
+# Restart the agent — User env vars don't propagate into running processes.
+```
+
+**macOS / Linux (zsh/bash):**
+
+```bash
+echo 'export GEMINI_API_KEY="<your-key>"' >> ~/.zshrc   # or ~/.bashrc
+source ~/.zshrc
+```
+
+Verify:
+
+```bash
+graphify extract .vicky/sources --backend gemini
+```
+
+> Do **not** put the key in `.vicky/`, `vicky.config.json`, or any tracked file. It won't be read, and you risk leaking it via git.
+
 ## Env overrides
 
 | Var               | Default                     | Use |
@@ -140,6 +182,8 @@ WHERE length(file.inlinks)=0 AND length(file.outlinks)=0
 | `VICKY_ROOT`      | `.vicky`                    | Move vault outside CWD |
 | `OBSIDIAN_EXE`    | `obsidian` (from PATH)      | Override Obsidian binary |
 | `OBSIDIAN_VAULT`  | basename of `VICKY_ROOT`    | Override registered vault name |
+| `GEMINI_API_KEY`  | —                           | graphify semantic extraction (see above) |
+| `GRAPHIFY_FORCE`  | `0`                         | Overwrite graph even if rebuild shrinks node count |
 
 ## License
 
