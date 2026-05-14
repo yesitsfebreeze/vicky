@@ -5,7 +5,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node \"${CLAUDE_PLUGIN_ROOT}/src/init.js\"",
+						"command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/init.js\"",
 						"timeout": 10
 					}
 				]

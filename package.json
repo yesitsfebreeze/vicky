@@ -3,15 +3,15 @@
   "version": "0.3.0",
   "description": "Vicky KB: demand-driven knowledge base. Auto-enrich answers when gaps detected.",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "vicky": "src/index.js",
-    "vicky-dashboard": "src/dashboard.js"
+    "vicky": "dist/index.js",
+    "vicky-dashboard": "dist/dashboard.js"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "init": "node ~/.claude/skills/vicky/init.mjs",
-    "dashboard": "node src/dashboard.js"
+    "build": "node build.js",
+    "start": "node dist/index.js",
+    "dashboard": "node dist/dashboard.js"
   },
   "keywords": [
     "knowledge-base",
@@ -32,5 +32,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
   }
 }

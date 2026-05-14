@@ -21,7 +21,7 @@
 	"mcpServers": {
 		"vicky": {
 			"command": "node",
-			"args": ["${CLAUDE_PLUGIN_ROOT}/src/index.js"],
+			"args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
 			"description": "Vicky: demand-driven knowledge base"
 		}
 	}
