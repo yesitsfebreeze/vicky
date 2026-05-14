@@ -1,9 +1,8 @@
 ---
-name: autoresearch
-description: Autonomous optimization loop for phynite. Reads experiment.md task queue, estimates time per task, executes in worktrees (cargo build+test+perf), measures actual time, learns estimates, merges improvements. Capacity-queue scheduling (Karpathy-style) fills 30-min cycles and repeats. Use `/autoresearch` to start the loop. Estimates improve over time. Works for rendering, shader, physics, LOD. Automatic perf benchmarking with zoom in/out scene.
+description: Autonomous code-optimization loop. Reads experiment.md task queue, estimates time per task, executes in git worktrees (build + test + perf benchmark), measures actual time, learns estimates, merges improvements. Capacity-queue scheduling fills 30-min cycles and repeats. Use /vicky:experiment to start the loop. Estimates self-correct over time. Works for rendering, shader, physics, LOD optimization.
 ---
 
-# Autoresearch: Continuous Optimization Loop
+# Experiment: Continuous Optimization Loop
 
 Run iterative experiments with adaptive time estimation and auto-merging.
 
@@ -31,7 +30,7 @@ Task D (est. 9 min) ✗ doesn't fit → defer
 ## Commands
 
 ```
-/autoresearch              # Start the loop (picks tasks, executes, repeats)
+/vicky:experiment              # Start the loop (picks tasks, executes, repeats)
 ```
 
 ## experiment.md Format
@@ -89,7 +88,7 @@ After cycle: merge wins, update baselines, relearn estimates, refill.
 
 ### 1. Estimate
 
-Parse task scope from experiment.md and consult `.claude/autoresearch.json` for historical data:
+Parse task scope from experiment.md and consult `.claude/experiment.json` for historical data:
 
 ```python
 estimate = (build_time + test_time + benchmark_time) × learned_factor
@@ -104,11 +103,11 @@ Baseline estimate:
 
 Example: Task 1 (2 files, 1 new test) → 50s + 7s + 30s + 19.2s ≈ 8 min
 
-Store estimate in `.claude/autoresearch.json` task queue.
+Store estimate in `.claude/experiment.json` task queue.
 
 ### 2. Execute Task in Worktree
 
-Create worktree: `git worktree add .claude/worktrees/autoresearch-task-<id>`
+Create worktree: `git worktree add .claude/worktrees/experiment-task-<id>`
 
 Apply changes from task description, then:
 ```bash
@@ -141,7 +140,7 @@ Update task estimate:
 new_estimate = actual_time + (actual_time - estimate) / 2
 ```
 
-Store in `.claude/autoresearch.json`. Next cycle will use tighter or looser estimates based on learned factor.
+Store in `.claude/experiment.json`. Next cycle will use tighter or looser estimates based on learned factor.
 
 Example:
 - Estimate: 8 min (480s)
@@ -160,11 +159,11 @@ If discarded: cleanup worktree, log reason, move to next task in cycle.
 Stop loop if:
 - Last 3 cycles: Δ < 0.5% (noise floor)
 - Estimate & actual converge: |estimate - actual| / actual < 10%
-- User runs `stop autoresearch`
+- User runs `stop experiment`
 
 ## State File
 
-**`.claude/autoresearch.json`** — Tracks queue, baselines, learning factors:
+**`.claude/experiment.json`** — Tracks queue, baselines, learning factors:
 ```json
 {
   "capacity_sec": 1800,
@@ -202,7 +201,7 @@ After 3-4 cycles, estimates should stabilize within ±20%.
 ## Example Session
 
 ```
-User: /autoresearch
+User: /vicky:experiment
 Claude: Parsed experiment.md (tile-subdiv optimization).
 Estimate: 2.5 min. Creating worktree...
 [builds, tests, benchmarks]
@@ -223,10 +222,10 @@ Experiment complete. Worktree cleaned up.
 
 ## Troubleshooting
 
-**"experiment.md not found"** — Create `experiment.md` in repo root with the format above, or specify alternate path: `/autoresearch docs/experiments/phase-6.md`
+**"experiment.md not found"** — Create `experiment.md` in repo root with the format above, or specify alternate path: `/vicky:experiment docs/experiments/phase-6.md`
 
 **"Perf graph missing"** — Ensure `phynite run --capture-perf` writes valid JSON to `perf.json`. Check `test.log` for runtime errors.
 
-**"Loop stuck / not scheduling"** — Check `.claude/autoresearch.json` for `status: "error"`. Run `/autoresearch status` to see current state. Use `/autoresearch reset` to restart.
+**"Loop stuck / not scheduling"** — Check `.claude/experiment.json` for `status: "error"`. Run `/vicky:experiment status` to see current state. Use `/vicky:experiment reset` to restart.
 
-**"Worktree cleanup failed"** — Manually remove `.claude/worktrees/autoresearch-*` if process was killed. Git may lock worktree; `git worktree prune` can help.
+**"Worktree cleanup failed"** — Manually remove `.claude/worktrees/experiment-*` if process was killed. Git may lock worktree; `git worktree prune` can help.

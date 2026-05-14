@@ -10,6 +10,15 @@ Loaded automatically at SessionStart. Re-invoke `/vicky:setup` after `/compact` 
 
 A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown notes linked with `[[wikilinks]]`. An Obsidian vault preset (Dataview pre-enabled) ships with the plugin and is scaffolded into `.vicky/` on first init.
 
+## Skills (`/vicky:<name>`)
+
+| Skill | When |
+|-------|------|
+| `setup` | Auto-fires on SessionStart. Re-invoke after `/compact` to restore context. |
+| `learn` | Drain the pending queue into conclusion stubs and refresh link graphs. Batch op. |
+| `research "<topic>"` | Topic-focused web research → sources + follow-up questions. |
+| `experiment` | Autonomous code-optimisation loop. Reads `experiment.md`, runs in worktrees, learns time estimates. |
+
 ## MCP tools
 
 | Tool | Use when |
