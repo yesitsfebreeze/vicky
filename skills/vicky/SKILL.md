@@ -1,3 +1,7 @@
+---
+description: Demand-driven knowledge base. Use when the user asks a project-context question, references prior research, wants to remember findings, or queries the KB. Calls research-gap (with auto-enqueue), research, remember, dashboard, and dql tools against an Obsidian + Dataview vault.
+---
+
 # Vicky KB Skill
 
 Demand-driven knowledge base. Auto-enrich answers from project context.

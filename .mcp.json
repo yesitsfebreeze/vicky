@@ -1,9 +1,9 @@
 {
-  "mcpServers": {
-    "vicky": {
-      "command": "node",
-      "args": ["./src/index.js"],
-      "description": "Vicky: demand-driven knowledge base + research system"
-    }
-  }
+	"mcpServers": {
+		"vicky": {
+			"command": "node",
+			"args": ["${CLAUDE_PLUGIN_ROOT}/src/index.js"],
+			"description": "Vicky: demand-driven knowledge base"
+		}
+	}
 }

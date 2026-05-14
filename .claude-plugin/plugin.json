@@ -1,0 +1,21 @@
+{
+	"$schema": "https://code.claude.com/schemas/plugin.json",
+	"name": "vicky",
+	"version": "0.3.0",
+	"description": "Demand-driven knowledge base. Auto-enriches answers when gaps detected. Drives Obsidian + Dataview for live KB views.",
+	"author": {
+		"name": "sayhe",
+		"url": "https://github.com/yesitsfebreeze"
+	},
+	"license": "MIT",
+	"homepage": "https://github.com/yesitsfebreeze/vicky#readme",
+	"repository": "https://github.com/yesitsfebreeze/vicky",
+	"keywords": [
+		"knowledge-base",
+		"research",
+		"dataview",
+		"obsidian",
+		"demand-driven",
+		"gap-detection"
+	]
+}

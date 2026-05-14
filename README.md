@@ -18,36 +18,35 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 
 ## Install
 
-One-shot for any agent — clone, install, register MCP, open vault.
+### Claude Code (plugin)
 
 ```bash
-# 1. Clone wherever your agent stores plugins / skills
-git clone https://github.com/yesitsfebreeze/vicky ~/vicky
-cd ~/vicky
-npm install
-
-# 2. Register the MCP server in your agent
-#    Command:   node
-#    Args:      ["<absolute path to>/vicky/src/index.js"]
-#
-#    Example for Claude Code (user scope):
-claude mcp add vicky --scope user node "$HOME/vicky/src/index.js"
-#
-#    Example .mcp.json (any agent that reads it):
-#    {
-#      "mcpServers": {
-#        "vicky": { "command": "node", "args": ["~/vicky/src/index.js"] }
-#      }
-#    }
-
-# 3. Restart your agent. First session triggers init():
-#      - Creates .vicky/{sources,conclusions,pending,graphs}
-#      - Scaffolds the Obsidian preset (.obsidian/, Dashboard.md, WORKFLOW.md, _index.md)
-
-# 4. Open .vicky/ in Obsidian, enable the Dataview plugin (preset auto-installs it on first open).
+claude plugin install vicky@yesitsfebreeze/vicky
 ```
 
-That's the whole setup. No agent-specific steps.
+Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky` skill. First session scaffolds `.vicky/{sources,conclusions,pending,graphs}` plus the Obsidian preset (`.obsidian/`, `Dashboard.md`, `WORKFLOW.md`, folder indexes).
+
+### Any other MCP-capable agent
+
+```bash
+git clone https://github.com/yesitsfebreeze/vicky ~/vicky
+cd ~/vicky && npm install
+```
+
+Register the MCP server pointing at `~/vicky/src/index.js`. Example `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "vicky": {
+      "command": "node",
+      "args": ["~/vicky/src/index.js"]
+    }
+  }
+}
+```
+
+Restart the agent. First call triggers `init()`. Open `.vicky/` in Obsidian and enable Dataview (the preset auto-installs it on first open).
 
 ## Update
 
