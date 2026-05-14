@@ -29,21 +29,35 @@ const QUERIES = {
 	tags:    `TABLE WITHOUT ID length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`,
 };
 
-const EVAL_TIMEOUT_MS = 15_000;
+const EVAL_TIMEOUT_MS = Number(process.env.OBSIDIAN_TIMEOUT_MS) || 10_000;
 
 function payload(sql) {
 	const safe = sql.replace(/`/g, '\\`').replace(/\$/g, '\\$');
 	return `(async()=>{const dv=app.plugins.plugins.dataview&&app.plugins.plugins.dataview.api;if(!dv)return JSON.stringify({error:'dataview-not-loaded'});try{const r=await dv.query(\`${safe}\`);return JSON.stringify(r.successful?r.value:{error:r.error});}catch(e){return JSON.stringify({error:String(e)});}})()`;
 }
 
-export function run_dql(sql) {
-	const stdout = execFileSync(
-		fs.obsidian_exe(),
-		[`vault=${fs.vault_name()}`, 'eval', `code=${payload(sql)}`],
-		{ encoding: 'utf8', timeout: EVAL_TIMEOUT_MS, windowsHide: true },
+function not_open_error() {
+	return new Error(
+		`Obsidian is not running with the vault "${fs.vault_name()}" open. ` +
+		`Open the vault in Obsidian (with the Dataview plugin enabled), then retry. ` +
+		`Override the wait window with OBSIDIAN_TIMEOUT_MS.`,
 	);
+}
+
+export function run_dql(sql) {
+	let stdout;
+	try {
+		stdout = execFileSync(
+			fs.obsidian_cli(),
+			[`vault=${fs.vault_name()}`, 'eval', `code=${payload(sql)}`],
+			{ encoding: 'utf8', timeout: EVAL_TIMEOUT_MS, windowsHide: true },
+		);
+	} catch (e) {
+		if (e.code === 'ETIMEDOUT' || e.killed) throw not_open_error();
+		throw e;
+	}
 	const m = stdout.match(/=>\s*([\s\S]+?)\s*$/);
-	if (!m) throw new Error(`Obsidian eval returned no result. Is the vault "${fs.vault_name()}" open in Obsidian?`);
+	if (!m) throw not_open_error();
 	const data = JSON.parse(m[1].trim());
 	if (data?.error) throw new Error(`Dataview: ${data.error}`);
 	return data;

@@ -23,4 +23,4 @@ export const dashboard_md = () => join(root(), 'Dashboard.md');
 export const report_md    = () => join(root(), 'Dashboard.report.md');
 export const template_dir = () => join(SKILL_DIR, '..', 'obsidian');
 export const vault_name   = () => process.env.OBSIDIAN_VAULT || basename(root());
-export const obsidian_exe = () => process.env.OBSIDIAN_EXE || 'obsidian';
+export const obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === 'win32' ? 'obsidian.com' : 'obsidian');
