@@ -27,7 +27,8 @@ A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown not
 | `research-gap "<question>"` | Default for any knowledge question. Returns KB context if found, auto-enqueues research when there's a gap. Honors `WORKFLOW.md → auto_enqueue`. |
 | `query "<question>"`        | Direct KB lookup, no auto-enqueue. Focus-biased per WORKFLOW.md. |
 | `research`                  | Drain the pending queue into conclusion stubs. `triage` workflow filters to `priority: high`. |
-| `remember title content`    | Save findings to `.vicky/sources/` with frontmatter. |
+| `remember title content`    | Save findings to `.vicky/sources/` with frontmatter. Cannot write to `conclusions/`. |
+| `conclude title content sources` | Save a derived conclusion to `.vicky/conclusions/`. `sources` arg becomes `[[wikilinks]]` in frontmatter + body. Use after a research pass. |
 | `enqueue "<question>"`      | Manually queue a research question. |
 | `relink`                    | Rebuild link graphs + `related:` frontmatter. |
 | `dashboard`                 | Vault overview (counts, hubs, pending, orphans, stale, tags) via Obsidian + Dataview. Call before research sessions and when the user asks about KB state. |

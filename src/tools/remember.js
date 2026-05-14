@@ -17,6 +17,9 @@ export function register(server) {
 		},
 	}, async ({ title, content, folder, tags = [], sources = [], related = [] }) => {
 		await ensure_init();
+		if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
+			return { content: [{ type: 'text', text: 'remember writes to .vicky/sources/ only. To save a derived conclusion, call `conclude` instead.' }], isError: true };
+		}
 		const dir = folder ? join(fs.sources(), folder) : fs.sources();
 		const merged = Array.from(new Set(['source', ...tags.filter(t => t !== 'research')]));
 		const path = save_note(title, content, { dir, tags: merged, type: 'source', sources, related });

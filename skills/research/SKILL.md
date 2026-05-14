@@ -29,11 +29,11 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction in Vulkan"
    - Open problems / "future work" sections
    - Conflicting claims across sources (→ "reconcile X vs Y" follow-ups)
    For each follow-up, call `enqueue "<question>"` with `requested_by: research`, `priority: med` by default (or `high` if the question blocks the original topic).
-7. **Write topic conclusion stub** — call `remember title="<topic>" folder="conclusions"` with:
-   - One-paragraph summary
-   - `sources: [<each saved source title>]` — the helper writes them as `[[wikilinks]]` in both frontmatter and a `## Sources` body block, so the conclusion is graph-connected to every source it derives from
-   - `## Open Questions` listing the enqueued follow-ups
-   - `type: conclusion`, `tags: [conclusion]` (drop `research` tag — the conclusion is no longer pending)
+7. **Write topic conclusion stub** — call `conclude title="<topic>"` (NOT `remember` — `remember` only writes to `.vicky/sources/`) with:
+   - One-paragraph summary in `content`
+   - `sources: [<each saved source title>]` — the tool writes them as `[[wikilinks]]` in both frontmatter and a `## Sources` body block, so the conclusion is graph-connected to every source it derives from
+   - `## Open Questions` section listing the enqueued follow-ups (in `content`)
+   - Extra `tags` are merged with `conclusion`; the `research` / `pending` tags are stripped automatically
 8. **Relink** — call `relink` so the new sources + conclusion appear in graphs and `related:` frontmatter.
 9. **Report** — summarise: N sources saved, M follow-ups enqueued, conclusion stub path, dashboard hint.
 

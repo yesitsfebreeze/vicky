@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import * as query       from './tools/query.js';
 import * as researchGap from './tools/research-gap.js';
 import * as remember    from './tools/remember.js';
+import * as conclude    from './tools/conclude.js';
 import * as relink      from './tools/relink.js';
 import * as research    from './tools/research.js';
 import * as enqueue     from './tools/enqueue.js';
@@ -48,6 +49,7 @@ if (config.systemPrompt?.enabled) {
 query.register(server);
 researchGap.register(server, notify);
 remember.register(server);
+conclude.register(server);
 relink.register(server, notify);
 research.register(server, notify);
 enqueue.register(server);
