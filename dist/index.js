@@ -21292,6 +21292,20 @@ ${body_with_links}
 `);
   return path;
 }
+function conclusion_scaffold(title) {
+  return [
+    `# ${title}`,
+    "",
+    "## Conclusion",
+    "_Stub \u2014 synthesise the takeaway from the linked sources below._",
+    "",
+    "## Why",
+    "_What evidence in the sources backs this conclusion?_",
+    "",
+    "## Caveats / Open questions",
+    "_What the sources do not cover; what is unresolved._"
+  ].join("\n");
+}
 function enqueue_research(question, { context = "", requested_by = "", priority = "med", sources: sources2 = [] } = {}) {
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = safe_name(question);
@@ -21683,9 +21697,11 @@ No KB match. Use /vic:web-search "question" to research manually.`
 
 // src/tools/remember.js
 import { join as join5 } from "path";
+import { existsSync as existsSync5 } from "fs";
+var safe_name2 = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
 function register3(server2) {
   server2.registerTool("remember", {
-    description: "Save key points or findings from a conversation into the source vault",
+    description: "Save key points or findings into the source vault. Also seeds a paired conclusion stub in .vicky/conclusions/ if one does not already exist \u2014 sources spawn conclusions by design.",
     inputSchema: {
       title: external_exports.string().describe("Topic title"),
       content: external_exports.string().describe("Key points or findings (markdown)"),
@@ -21702,7 +21718,21 @@ function register3(server2) {
     const dir = folder ? join5(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related });
-    return { content: [{ type: "text", text: `Saved: ${path}` }] };
+    const slug = safe_name2(title);
+    const con_path = join5(conclusions(), `${slug}.md`);
+    let con_msg = "";
+    if (!existsSync5(con_path)) {
+      save_note(slug, conclusion_scaffold(title), {
+        dir: conclusions(),
+        tags: ["conclusion"],
+        type: "conclusion",
+        sources: [slug, ...sources2],
+        related
+      });
+      con_msg = `
+Conclusion stub seeded: ${con_path}`;
+    }
+    return { content: [{ type: "text", text: `Saved: ${path}${con_msg}` }] };
   });
 }
 
@@ -21729,11 +21759,11 @@ function register4(server2) {
 }
 
 // src/link.js
-import { existsSync as existsSync5, readFileSync as readFileSync4, readdirSync as readdirSync3 } from "fs";
+import { existsSync as existsSync6, readFileSync as readFileSync4, readdirSync as readdirSync3 } from "fs";
 import { join as join7 } from "path";
 var BATCH = 10;
 function list_md_files(dir) {
-  if (!existsSync5(dir)) return [];
+  if (!existsSync6(dir)) return [];
   const files = [];
   function walk(d) {
     for (const e of readdirSync3(d, { withFileTypes: true })) {
@@ -21800,7 +21830,7 @@ function register5(server2, notify2) {
 
 // src/tools/learn.js
 import { join as join8 } from "path";
-import { existsSync as existsSync6, readFileSync as readFileSync5 } from "fs";
+import { existsSync as existsSync7, readFileSync as readFileSync5 } from "fs";
 function register6(server2, notify2) {
   server2.registerTool("learn", {
     description: 'Walk the KB: drain pending queue \u2192 derive sources + conclusions \u2192 discover new topics \u2192 relink. No external fetches; this is the "connect what we already have" step. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
@@ -21833,7 +21863,7 @@ function register6(server2, notify2) {
             try {
               const slug = pf.replace(/\.md$/, "");
               const conPath = join8(conclusions(), pf);
-              if (existsSync6(conPath)) {
+              if (existsSync7(conPath)) {
                 delete_pending(pf);
                 continue;
               }
@@ -21857,7 +21887,7 @@ ${ctx.trim()}
                 related: pending_sources
               });
               const linked = [.../* @__PURE__ */ new Set([slug, ...pending_sources, ...ctx_titles])];
-              save_note(slug, "_derived from pending \u2014 fill in synthesis_", {
+              save_note(slug, conclusion_scaffold(question), {
                 dir: conclusions(),
                 tags: ["conclusion"],
                 type: "conclusion",
@@ -21892,8 +21922,8 @@ ${ctx.trim()}
         if (topic) {
           const safe = topic.replace(/[^\w\s-]/g, "").trim().slice(0, 60);
           const conPath = join8(conclusions(), `${safe}.md`);
-          if (!existsSync6(conPath)) {
-            save_note(safe, "_stub_", { dir: conclusions(), tags: ["conclusion"], type: "conclusion" });
+          if (!existsSync7(conPath)) {
+            save_note(safe, conclusion_scaffold(topic), { dir: conclusions(), tags: ["conclusion"], type: "conclusion" });
             notify2("info", `vicky: created conclusion stub for "${safe}"`);
           }
         }
@@ -21963,7 +21993,7 @@ This saves the research to Vicky's knowledge base for future queries.`;
 }
 
 // src/tools/promote.js
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, existsSync as existsSync7 } from "fs";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, existsSync as existsSync8 } from "fs";
 import { join as join9 } from "path";
 function register9(server2) {
   server2.registerTool("promote", {
@@ -21979,7 +22009,7 @@ function register9(server2) {
     const toDir = type === "research" ? conclusions() : research();
     const fromPath = join9(fromDir, filename);
     const toPath = join9(toDir, filename);
-    if (!existsSync7(fromPath)) {
+    if (!existsSync8(fromPath)) {
       return { content: [{
         type: "text",
         text: `Error: File not found at ${fromPath}`
@@ -22005,7 +22035,7 @@ function register9(server2) {
 }
 
 // src/tools/complete-research.js
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, existsSync as existsSync8, readdirSync as readdirSync4 } from "fs";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, existsSync as existsSync9, readdirSync as readdirSync4 } from "fs";
 import { join as join10 } from "path";
 function register10(server2) {
   server2.registerTool("complete-research", {
@@ -22020,7 +22050,7 @@ function register10(server2) {
     let filesToProcess = [];
     if (file) {
       const filename = file.endsWith(".md") ? file : `${file}.md`;
-      if (existsSync8(join10(research(), filename))) {
+      if (existsSync9(join10(research(), filename))) {
         filesToProcess = [filename];
       } else {
         return { content: [{
@@ -22029,7 +22059,7 @@ function register10(server2) {
         }] };
       }
     } else {
-      if (existsSync8(research())) {
+      if (existsSync9(research())) {
         filesToProcess = readdirSync4(research()).filter((f) => f.endsWith(".md"));
       }
     }
@@ -22086,7 +22116,7 @@ var QUERIES = {
   pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM "pending" WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
   orphans: `LIST FROM "conclusions" OR "sources" WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
   stale: `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM "conclusions" WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
-  tags: `TABLE WITHOUT ID length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
+  tags: `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
 };
 var EVAL_TIMEOUT_MS = Number(process.env.OBSIDIAN_TIMEOUT_MS) || 1e4;
 function payload(sql) {

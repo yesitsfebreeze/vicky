@@ -63,6 +63,24 @@ export function save_note(title, body, { dir = fs.sources(), tags = [], type = '
 export const save_research = (question, body) =>
 	save_note(question, body, { dir: fs.research(), tags: ['research'], type: 'research' });
 
+// Scaffold used for every newly-spawned conclusion stub. Three headers force
+// the caller to think about (a) the takeaway, (b) evidence, (c) what's still
+// open — instead of leaving a bare `_stub_` placeholder.
+export function conclusion_scaffold(title) {
+	return [
+		`# ${title}`,
+		'',
+		'## Conclusion',
+		'_Stub — synthesise the takeaway from the linked sources below._',
+		'',
+		'## Why',
+		'_What evidence in the sources backs this conclusion?_',
+		'',
+		'## Caveats / Open questions',
+		'_What the sources do not cover; what is unresolved._',
+	].join('\n');
+}
+
 export function enqueue_research(question, { context = '', requested_by = '', priority = 'med', sources = [] } = {}) {
 	const date = new Date().toISOString().split('T')[0];
 	const safe = safe_name(question);

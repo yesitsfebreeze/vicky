@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'fs';
 import * as fs from '../fs.js';
 import { query_graph, list_titles_from_graph } from '../graph.js';
 import { relink_dir } from '../link.js';
-import { save_note, list_con_files, list_pending, read_pending, delete_pending } from '../vault.js';
+import { save_note, list_con_files, list_pending, read_pending, delete_pending, conclusion_scaffold } from '../vault.js';
 import { ensure_init } from '../init.js';
 import { load_workflow } from '../workflow.js';
 
@@ -61,7 +61,7 @@ export function register(server, notify) {
 
 							// 2. Derive conclusion linked to the new source + any prior sources.
 							const linked = [...new Set([slug, ...pending_sources, ...ctx_titles])];
-							save_note(slug, '_derived from pending — fill in synthesis_', {
+							save_note(slug, conclusion_scaffold(question), {
 								dir: fs.conclusions(),
 								tags: ['conclusion'],
 								type: 'conclusion',
@@ -104,7 +104,7 @@ export function register(server, notify) {
 					const safe = topic.replace(/[^\w\s-]/g, '').trim().slice(0, 60);
 					const conPath = join(fs.conclusions(), `${safe}.md`);
 					if (!existsSync(conPath)) {
-						save_note(safe, '_stub_', { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
+						save_note(safe, conclusion_scaffold(topic), { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
 						notify('info', `vicky: created conclusion stub for "${safe}"`);
 					}
 				}
