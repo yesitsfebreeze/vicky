@@ -78,11 +78,13 @@ Do not call `research` reactively for every question — it drains the queue and
 
 ```
 .vicky/
-├── sources/      external research, papers, web findings
-├── conclusions/  synthesised knowledge
-├── pending/      queued research questions
-├── graphs/       link graphs (sources.json, conclusions.json)
-├── .obsidian/    Dataview-enabled vault config
-├── WORKFLOW.md   focus + rules + routing (edit to steer)
-└── Dashboard.md  live Dataview views
+├── sources/        external research, papers, web findings
+├── conclusions/    synthesised knowledge
+├── pending/        queued research questions
+├── .graphify/      semantic graph state (graph.json — read by query_graph)
+├── graphs/         Dataview-queryable wiki of the graph (vicky.md + clusters)
+├── .graphifyignore graphify scope (excludes pending/, .obsidian/, Dashboard.md, etc.)
+├── .obsidian/      Dataview-enabled vault config
+├── WORKFLOW.md     focus + rules + routing (edit to steer)
+└── Dashboard.md    live Dataview views
 ```

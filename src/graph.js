@@ -1,6 +1,6 @@
 import { exec, spawn } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { existsSync, readFileSync, renameSync } from 'fs';
+import { dirname, join, resolve } from 'path';
 import * as fs from './fs.js';
 
 const sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
@@ -38,30 +38,48 @@ async function checkGraphify() {
 	return graphifyAvailable;
 }
 
-export const update_src = async () => {
+export const update_kb = async () => {
 	if (!(await checkGraphify())) return;
-	return sh_bg(`${graphifyCmd} update .`, { cwd: fs.sources() });
+	const root = resolve(fs.root());
+	await sh_bg(`${graphifyCmd} update "${root}"`, { cwd: root });
+	const graph = fs.kb_graph();
+	if (!existsSync(graph)) return;
+	const wikiDir = fs.graphs();
+	await sh_bg(`${graphifyCmd} export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root });
+	const idx = join(wikiDir, 'index.md');
+	if (existsSync(idx)) {
+		try { renameSync(idx, fs.kb_wiki()); } catch { /* ignore */ }
+	}
 };
 
-export const update_con = async () => {
-	if (!(await checkGraphify())) return;
-	return sh_bg(`${graphifyCmd} update .`, { cwd: fs.conclusions() });
-};
-
-export async function query_graph(question, graph) {
+export async function query_graph(question, graph = fs.kb_graph(), prefix = null) {
 	if (!existsSync(graph)) return '';
 	if (!(await checkGraphify())) return '';
-	try { return await sh_async(`${graphifyCmd} query "${question}" --graph "${graph}"`); } catch (_) { return ''; }
+	try {
+		const out = await sh_async(`${graphifyCmd} query "${question}" --graph "${graph}"`);
+		if (!prefix) return out;
+		return filter_nodes_by_prefix(out, prefix);
+	} catch (_) { return ''; }
 }
 
-export function list_titles_from_graph(graphPath) {
+function filter_nodes_by_prefix(raw, prefix) {
+	if (!raw) return '';
+	return raw.split('\n').filter(line => {
+		const m = line.match(/^NODE\s+(.+?)\s+\[/);
+		if (!m) return true;
+		return m[1].startsWith(prefix);
+	}).join('\n');
+}
+
+export function list_titles_from_graph(graphPath = fs.kb_graph(), prefix = null) {
 	if (!existsSync(graphPath)) return [];
 	try {
 		const { nodes } = JSON.parse(readFileSync(graphPath, 'utf8'));
 		return [...new Set(
 			nodes
 				.filter(n => n.source_location === 'L1' && n.source_file?.endsWith('.md'))
-				.map(n => n.source_file.split('/').pop().replace(/\.md$/, ''))
+				.filter(n => !prefix || n.source_file.replace(/\\/g, '/').includes(`/${prefix}/`) || n.source_file.startsWith(`${prefix}/`))
+				.map(n => n.source_file.split(/[/\\]/).pop().replace(/\.md$/, ''))
 		)];
 	} catch (_) { return []; }
 }

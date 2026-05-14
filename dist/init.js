@@ -2,7 +2,7 @@
 import { createRequire } from "module"; const require = createRequire(import.meta.url);
 
 // src/init.js
-import { existsSync, mkdirSync, readdirSync, copyFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from "fs";
 import { join as join2 } from "path";
 
 // src/fs.js
@@ -14,9 +14,23 @@ var sources = () => join(root(), "sources");
 var conclusions = () => join(root(), "conclusions");
 var pending = () => join(root(), "pending");
 var graphs = () => join(root(), "graphs");
+var graphifyignore = () => join(root(), ".graphifyignore");
 var template_dir = () => join(SKILL_DIR, "..", "obsidian");
 
 // src/init.js
+var GRAPHIFYIGNORE = [
+  "# Vicky-managed \u2014 controls graphify extract scope.",
+  "# Keep sources/ and conclusions/ as the only content corpora.",
+  "pending/",
+  "graphs/",
+  ".graphify/",
+  ".obsidian/",
+  "node_modules/",
+  "Dashboard.md",
+  "Dashboard.report.md",
+  "WORKFLOW.md",
+  ""
+].join("\n");
 function copy_tree(source, destination) {
   if (!existsSync(source)) return;
   mkdirSync(destination, { recursive: true });
@@ -47,6 +61,8 @@ async function init() {
     if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
   }
   copy_tree(template_dir(), root());
+  const ignore = graphifyignore();
+  if (!existsSync(ignore)) writeFileSync(ignore, GRAPHIFYIGNORE);
   initialized = true;
   return banner();
 }

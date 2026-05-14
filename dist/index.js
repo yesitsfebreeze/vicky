@@ -2987,7 +2987,7 @@ var require_compile = __commonJS({
       const schOrFunc = root2.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve.call(this, root2, ref);
+      let _sch = resolve2.call(this, root2, ref);
       if (_sch === void 0) {
         const schema = (_a = root2.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3014,7 +3014,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve(root2, ref) {
+    function resolve2(root2, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3645,7 +3645,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve(baseURI, relativeURI, options) {
+    function resolve2(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -3903,7 +3903,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve,
+      resolve: resolve2,
       resolveComponent,
       equal,
       serialize,
@@ -18983,7 +18983,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -19000,7 +19000,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve2, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -19078,7 +19078,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve(parseResult.data);
+            resolve2(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -19339,12 +19339,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve2, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve, interval);
+      const timeoutId = setTimeout(resolve2, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -20444,7 +20444,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -21093,12 +21093,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve();
+        resolve2();
       } else {
-        this._stdout.once("drain", resolve);
+        this._stdout.once("drain", resolve2);
       }
     });
   }
@@ -21117,8 +21117,10 @@ var conclusions = () => join(root(), "conclusions");
 var research = () => join(root(), "research");
 var pending = () => join(root(), "pending");
 var graphs = () => join(root(), "graphs");
-var sources_graph = () => join(graphs(), "sources.json");
-var conclusions_graph = () => join(graphs(), "conclusions.json");
+var graphify_out = () => join(root(), ".graphify");
+var kb_graph = () => join(graphify_out(), "graph.json");
+var kb_wiki = () => join(graphs(), "vicky.md");
+var graphifyignore = () => join(root(), ".graphifyignore");
 var workflow_md = () => join(root(), "WORKFLOW.md");
 var report_md = () => join(root(), "Dashboard.report.md");
 var template_dir = () => join(SKILL_DIR, "..", "obsidian");
@@ -21127,8 +21129,8 @@ var obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === "win3
 
 // src/graph.js
 import { exec, spawn } from "child_process";
-import { existsSync, readFileSync } from "fs";
-import { dirname as dirname2, join as join2 } from "path";
+import { existsSync, readFileSync, renameSync } from "fs";
+import { dirname as dirname2, join as join2, resolve } from "path";
 var sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
   const p = spawn(cmd, [], { shell: true, stdio: "ignore", windowsHide: true, ...opts });
   p.on("close", res);
@@ -21163,29 +21165,47 @@ async function checkGraphify() {
   }
   return graphifyAvailable;
 }
-var update_src = async () => {
+var update_kb = async () => {
   if (!await checkGraphify()) return;
-  return sh_bg(`${graphifyCmd} update .`, { cwd: sources() });
+  const root2 = resolve(root());
+  await sh_bg(`${graphifyCmd} update "${root2}"`, { cwd: root2 });
+  const graph = kb_graph();
+  if (!existsSync(graph)) return;
+  const wikiDir = graphs();
+  await sh_bg(`${graphifyCmd} export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root2 });
+  const idx = join2(wikiDir, "index.md");
+  if (existsSync(idx)) {
+    try {
+      renameSync(idx, kb_wiki());
+    } catch {
+    }
+  }
 };
-var update_con = async () => {
-  if (!await checkGraphify()) return;
-  return sh_bg(`${graphifyCmd} update .`, { cwd: conclusions() });
-};
-async function query_graph(question, graph) {
+async function query_graph(question, graph = kb_graph(), prefix = null) {
   if (!existsSync(graph)) return "";
   if (!await checkGraphify()) return "";
   try {
-    return await sh_async(`${graphifyCmd} query "${question}" --graph "${graph}"`);
+    const out = await sh_async(`${graphifyCmd} query "${question}" --graph "${graph}"`);
+    if (!prefix) return out;
+    return filter_nodes_by_prefix(out, prefix);
   } catch (_) {
     return "";
   }
 }
-function list_titles_from_graph(graphPath) {
+function filter_nodes_by_prefix(raw, prefix) {
+  if (!raw) return "";
+  return raw.split("\n").filter((line) => {
+    const m = line.match(/^NODE\s+(.+?)\s+\[/);
+    if (!m) return true;
+    return m[1].startsWith(prefix);
+  }).join("\n");
+}
+function list_titles_from_graph(graphPath = kb_graph(), prefix = null) {
   if (!existsSync(graphPath)) return [];
   try {
     const { nodes } = JSON.parse(readFileSync(graphPath, "utf8"));
     return [...new Set(
-      nodes.filter((n) => n.source_location === "L1" && n.source_file?.endsWith(".md")).map((n) => n.source_file.split("/").pop().replace(/\.md$/, ""))
+      nodes.filter((n) => n.source_location === "L1" && n.source_file?.endsWith(".md")).filter((n) => !prefix || n.source_file.replace(/\\/g, "/").includes(`/${prefix}/`) || n.source_file.startsWith(`${prefix}/`)).map((n) => n.source_file.split(/[/\\]/).pop().replace(/\.md$/, ""))
     )];
   } catch (_) {
     return [];
@@ -21338,8 +21358,21 @@ ${value}
 }
 
 // src/init.js
-import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, copyFileSync } from "fs";
+import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, copyFileSync, writeFileSync as writeFileSync2 } from "fs";
 import { join as join4 } from "path";
+var GRAPHIFYIGNORE = [
+  "# Vicky-managed \u2014 controls graphify extract scope.",
+  "# Keep sources/ and conclusions/ as the only content corpora.",
+  "pending/",
+  "graphs/",
+  ".graphify/",
+  ".obsidian/",
+  "node_modules/",
+  "Dashboard.md",
+  "Dashboard.report.md",
+  "WORKFLOW.md",
+  ""
+].join("\n");
 function copy_tree(source, destination) {
   if (!existsSync3(source)) return;
   mkdirSync2(destination, { recursive: true });
@@ -21370,6 +21403,8 @@ async function init() {
     if (!existsSync3(directory)) mkdirSync2(directory, { recursive: true });
   }
   copy_tree(template_dir(), root());
+  const ignore = graphifyignore();
+  if (!existsSync3(ignore)) writeFileSync2(ignore, GRAPHIFYIGNORE);
   initialized = true;
   return banner();
 }
@@ -21523,9 +21558,10 @@ function register(server2) {
     inputSchema: { question: external_exports.string().describe("Question to answer") }
   }, async ({ question }) => {
     await ensure_init();
+    const graph = kb_graph();
     const [con, src] = await Promise.all([
-      query_graph(question, conclusions_graph()),
-      query_graph(question, sources_graph())
+      query_graph(question, graph, "conclusions"),
+      query_graph(question, graph, "sources")
     ]);
     let parts = [con, src].filter(Boolean);
     if (!parts.length) {
@@ -21564,9 +21600,10 @@ function register2(server2, notify2) {
     }
   }, async ({ question, auto_research = true }) => {
     await ensure_init();
+    const graph = kb_graph();
     const [con, src] = await Promise.all([
-      query_graph(question, conclusions_graph()),
-      query_graph(question, sources_graph())
+      query_graph(question, graph, "conclusions"),
+      query_graph(question, graph, "sources")
     ]);
     let parts = [con, src].filter(Boolean);
     if (!parts.length) {
@@ -21719,18 +21756,19 @@ async function relink_dir(dir, graphPath, notify2) {
 // src/tools/relink.js
 function register5(server2, notify2) {
   server2.registerTool("relink", {
-    description: "Rebuild related: frontmatter for all files from the graph. Runs independently of a research pass.",
+    description: "Rebuild related: frontmatter for all files from the unified KB graph. Runs independently of a research pass.",
     inputSchema: {}
   }, async () => {
     await ensure_init();
     (async () => {
       try {
-        notify2("info", "vicky relink: updating graphs...");
-        await Promise.all([update_src(), update_con()]);
+        notify2("info", "vicky relink: updating KB graph...");
+        await update_kb();
         notify2("info", "vicky relink: querying graph for all files...");
+        const graph = kb_graph();
         const [src, con] = await Promise.all([
-          relink_dir(sources(), sources_graph()),
-          relink_dir(conclusions(), conclusions_graph())
+          relink_dir(sources(), graph),
+          relink_dir(conclusions(), graph)
         ]);
         notify2("info", `vicky relink done: ${src.patched + con.patched} relinked (${src.patched}/${src.total} sources, ${con.patched}/${con.total} conclusions).`);
       } catch (e) {
@@ -21781,7 +21819,7 @@ function register6(server2, notify2) {
                 continue;
               }
               const { question, context, sources: pending_sources, path: pending_path } = read_pending(pf);
-              const ctx = await query_graph(question, sources_graph());
+              const ctx = await query_graph(question, kb_graph(), "sources");
               const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map((m) => m[1].trim()) : [];
               const source_body = [
                 `## Question
@@ -21818,12 +21856,12 @@ ${ctx.trim()}
           const conTitles = list_con_files().map((f) => f.replace(/\.md$/, ""));
           const norm = (s) => s.toLowerCase().replace(/[^\w]/g, "");
           const conNorms = conTitles.map(norm);
-          const newTopics = list_titles_from_graph(sources_graph()).filter((t) => t.length > 10).filter((t) => {
+          const newTopics = list_titles_from_graph(kb_graph(), "sources").filter((t) => t.length > 10).filter((t) => {
             const n2 = norm(t).slice(0, 30);
             return !conNorms.some((h) => h.startsWith(n2.slice(0, 15)) || n2.startsWith(h.slice(0, 15)));
           }).sort(() => Math.random() - 0.5).slice(0, Math.floor(n / 2));
           for (const t of newTopics) {
-            const ctx = await query_graph(t, sources_graph());
+            const ctx = await query_graph(t, kb_graph(), "sources");
             const body = ctx ? `## Graph Context
 \`\`\`
 ${ctx.trim()}
@@ -21841,9 +21879,10 @@ ${ctx.trim()}
           }
         }
         notify2("info", "vicky: relinking...");
+        const graph = kb_graph();
         const [src, con] = await Promise.all([
-          relink_dir(sources(), sources_graph()),
-          relink_dir(conclusions(), conclusions_graph())
+          relink_dir(sources(), graph),
+          relink_dir(conclusions(), graph)
         ]);
         notify2("info", `vicky done: ${src.patched + con.patched} relinked.`);
       } catch (e) {
@@ -21905,7 +21944,7 @@ This saves the research to Vicky's knowledge base for future queries.`;
 }
 
 // src/tools/promote.js
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync2, unlinkSync as unlinkSync2, existsSync as existsSync7 } from "fs";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, existsSync as existsSync7 } from "fs";
 import { join as join9 } from "path";
 function register9(server2) {
   server2.registerTool("promote", {
@@ -21937,7 +21976,7 @@ function register9(server2) {
       content = content.replace(/tags: \[\s*,\s*/g, "tags: [");
       content = content.replace(/,\s*\]/g, "]");
     }
-    writeFileSync2(toPath, content, "utf8");
+    writeFileSync3(toPath, content, "utf8");
     unlinkSync2(fromPath);
     return { content: [{
       type: "text",
@@ -21947,7 +21986,7 @@ function register9(server2) {
 }
 
 // src/tools/complete-research.js
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync3, unlinkSync as unlinkSync3, existsSync as existsSync8, readdirSync as readdirSync4 } from "fs";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, existsSync as existsSync8, readdirSync as readdirSync4 } from "fs";
 import { join as join10 } from "path";
 function register10(server2) {
   server2.registerTool("complete-research", {
@@ -21999,7 +22038,7 @@ function register10(server2) {
       promoted = promoted.replace(/\[\s*,/g, "[");
       promoted = promoted.replace(/,\s*\]/g, "]");
       promoted = promoted.replace(/\[\s*\]/g, "[]");
-      writeFileSync3(toPath, promoted, "utf8");
+      writeFileSync4(toPath, promoted, "utf8");
       unlinkSync3(fromPath);
       results.push({
         file: filename,
@@ -22019,7 +22058,7 @@ ${summary}`
 
 // src/dashboard.js
 import { execFileSync } from "child_process";
-import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync4 } from "fs";
+import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync5 } from "fs";
 import { basename as basename2 } from "path";
 var QUERIES = {
   counts: `TABLE WITHOUT ID type AS Type, length(rows) AS Count FROM "." WHERE type GROUP BY type SORT length(rows) DESC`,
@@ -22125,7 +22164,7 @@ if (entry2.endsWith("dashboard.js")) {
       console.log(JSON.stringify(data, null, 2));
     } else if (args.includes("--write")) {
       mkdirSync3(root(), { recursive: true });
-      writeFileSync4(report_md(), markdown);
+      writeFileSync5(report_md(), markdown);
       console.log(report_md());
     } else {
       console.log(markdown);

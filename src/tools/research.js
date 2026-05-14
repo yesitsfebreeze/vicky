@@ -45,7 +45,7 @@ export function register(server, notify) {
 							const { question, context, sources: pending_sources, path: pending_path } = read_pending(pf);
 
 							// 1. Promote pending → source. Body preserves question + context.
-							const ctx = await query_graph(question, fs.sources_graph());
+							const ctx = await query_graph(question, fs.kb_graph(), 'sources');
 							const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map(m => m[1].trim()) : [];
 							const source_body = [
 								`## Question\n${question}`,
@@ -83,7 +83,7 @@ export function register(server, notify) {
 					const conTitles = list_con_files().map(f => f.replace(/\.md$/, ''));
 					const norm = s => s.toLowerCase().replace(/[^\w]/g, '');
 					const conNorms = conTitles.map(norm);
-					const newTopics = list_titles_from_graph(fs.sources_graph())
+					const newTopics = list_titles_from_graph(fs.kb_graph(), 'sources')
 						.filter(t => t.length > 10)
 						.filter(t => {
 							const n = norm(t).slice(0, 30);
@@ -92,7 +92,7 @@ export function register(server, notify) {
 						.sort(() => Math.random() - 0.5)
 						.slice(0, Math.floor(n / 2));
 					for (const t of newTopics) {
-						const ctx = await query_graph(t, fs.sources_graph());
+						const ctx = await query_graph(t, fs.kb_graph(), 'sources');
 						const body = ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '_No graph context yet._';
 						save_note(t, body, { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
 					}
@@ -109,11 +109,12 @@ export function register(server, notify) {
 					}
 				}
 
-				// ③ Relink (updates graphs + writes related: frontmatter)
+				// ③ Relink (writes related: frontmatter from the unified graph)
 				notify('info', 'vicky: relinking...');
+				const graph = fs.kb_graph();
 				const [src, con] = await Promise.all([
-					relink_dir(fs.sources(), fs.sources_graph()),
-					relink_dir(fs.conclusions(), fs.conclusions_graph()),
+					relink_dir(fs.sources(), graph),
+					relink_dir(fs.conclusions(), graph),
 				]);
 				notify('info', `vicky done: ${src.patched + con.patched} relinked.`);
 			} catch (e) {

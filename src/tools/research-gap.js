@@ -15,10 +15,11 @@ export function register(server, notify) {
 	}, async ({ question, auto_research = true }) => {
 		await ensure_init();
 
-		// Query KB with graph first
+		// Query the unified KB graph; split source-/conclusion-scoped views.
+		const graph = fs.kb_graph();
 		const [con, src] = await Promise.all([
-			query_graph(question, fs.conclusions_graph()),
-			query_graph(question, fs.sources_graph()),
+			query_graph(question, graph, 'conclusions'),
+			query_graph(question, graph, 'sources'),
 		]);
 		let parts = [con, src].filter(Boolean);
 

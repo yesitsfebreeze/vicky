@@ -86,7 +86,9 @@ Restart the agent so the MCP server reloads. `.vicky/` is yours — `init()` nev
 ├── sources/                 # external research, papers
 ├── conclusions/             # synthesized knowledge
 ├── pending/                 # queued research questions
-├── graphs/                  # knowledge graphs
+├── .graphify/               # graphify state — graph.json (semantic, BFS target)
+├── graphs/                  # Dataview-queryable wiki: vicky.md + cluster pages
+├── .graphifyignore          # extract scope (excludes pending/, .obsidian/, etc.)
 ├── .obsidian/               # Obsidian vault config (Dataview enabled)
 ├── WORKFLOW.md              # focus, rules, routing (edit to steer Vicky)
 └── Dashboard.md             # live Dataview views

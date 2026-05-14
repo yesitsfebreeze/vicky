@@ -7,9 +7,23 @@
  * touching the filesystem.
  */
 
-import { existsSync, mkdirSync, readdirSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import * as fs from './fs.js';
+
+const GRAPHIFYIGNORE = [
+	'# Vicky-managed — controls graphify extract scope.',
+	'# Keep sources/ and conclusions/ as the only content corpora.',
+	'pending/',
+	'graphs/',
+	'.graphify/',
+	'.obsidian/',
+	'node_modules/',
+	'Dashboard.md',
+	'Dashboard.report.md',
+	'WORKFLOW.md',
+	'',
+].join('\n');
 
 function copy_tree(source, destination) {
 	if (!existsSync(source)) return;
@@ -44,6 +58,8 @@ export async function init() {
 		if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
 	}
 	copy_tree(fs.template_dir(), fs.root());
+	const ignore = fs.graphifyignore();
+	if (!existsSync(ignore)) writeFileSync(ignore, GRAPHIFYIGNORE);
 	initialized = true;
 	return banner();
 }

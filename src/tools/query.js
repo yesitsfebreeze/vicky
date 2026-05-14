@@ -11,9 +11,10 @@ export function register(server) {
 		inputSchema: { question: z.string().describe('Question to answer') },
 	}, async ({ question }) => {
 		await ensure_init();
+		const graph = fs.kb_graph();
 		const [con, src] = await Promise.all([
-			query_graph(question, fs.conclusions_graph()),
-			query_graph(question, fs.sources_graph()),
+			query_graph(question, graph, 'conclusions'),
+			query_graph(question, graph, 'sources'),
 		]);
 		let parts = [con, src].filter(Boolean);
 
