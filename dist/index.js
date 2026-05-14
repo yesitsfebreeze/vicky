@@ -21752,39 +21752,48 @@ function register6(server2, notify2) {
           if (triage) pending2 = pending2.filter((x) => x.prio === "high");
           pending2.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
           pending2 = pending2.map((x) => x.pf);
-          let drained = 0;
+          let promoted = 0;
           for (const pf of pending2) {
             try {
+              const slug = pf.replace(/\.md$/, "");
               const conPath = join7(conclusions(), pf);
               if (existsSync6(conPath)) {
                 delete_pending(pf);
                 continue;
               }
-              const { question, context, sources: pending_sources } = read_pending(pf);
+              const { question, context, sources: pending_sources, path: pending_path } = read_pending(pf);
               const ctx = await query_graph(question, sources_graph());
               const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map((m) => m[1].trim()) : [];
-              const linked = [.../* @__PURE__ */ new Set([...pending_sources, ...ctx_titles])];
-              const body = [
-                context ? `## Requested Context
+              const source_body = [
+                `## Question
+${question}`,
+                context ? `## Context
 ${context}` : "",
                 ctx ? `## Graph Context
 \`\`\`
 ${ctx.trim()}
 \`\`\`` : ""
-              ].filter(Boolean).join("\n\n") || "_pending research_";
-              save_note(question, body, {
+              ].filter(Boolean).join("\n\n");
+              save_note(slug, source_body, {
+                dir: sources(),
+                tags: ["source"],
+                type: "source",
+                related: pending_sources
+              });
+              const linked = [.../* @__PURE__ */ new Set([slug, ...pending_sources, ...ctx_titles])];
+              save_note(slug, "_derived from pending \u2014 fill in synthesis_", {
                 dir: conclusions(),
                 tags: ["conclusion"],
                 type: "conclusion",
                 sources: linked
               });
               delete_pending(pf);
-              drained++;
+              promoted++;
             } catch (e) {
               notify2("error", `vicky: drain error on ${pf}: ${e.message.split("\n")[0]}`);
             }
           }
-          if (drained) notify2("info", `vicky: drained ${drained} pending \u2192 conclusion stubs.`);
+          if (promoted) notify2("info", `vicky: promoted ${promoted} pending \u2192 source + conclusion.`);
         }
         if (!topic) {
           const conTitles = list_con_files().map((f) => f.replace(/\.md$/, ""));

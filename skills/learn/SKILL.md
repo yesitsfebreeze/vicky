@@ -1,84 +1,66 @@
 ---
-description: Continuous KB-improvement loop. Drains the pending research queue into conclusion stubs, refreshes link graphs, and updates the `related:` frontmatter. Use /vicky:learn after a research burst, when the user wants Vicky to "catch up" on accumulated questions, or on a schedule. Honors WORKFLOW.md routing (triage mode filters to high priority).
+description: Drain the pending queue into the KB. One call promotes every pending note into a source, derives a conclusion linked to it, and rebuilds graphs. Use /vicky:learn after a /vicky:research pass, when the queue has grown, or on a schedule. Contract-enforced — the underlying `research` MCP tool guarantees the transitions, no procedural instructions to follow.
 ---
 
 # Vicky Learn
 
-Continuous KB improvement. Walks `.vicky/pending/`, turns each pending question into a `.vicky/conclusions/` stub with graph context, rebuilds the source + conclusion graphs, and writes `related:` wikilinks back into every note.
+Drain pending → sources → conclusions → relink. The transitions are
+enforced in code (`research` MCP tool), not in this document.
 
 Invoke: `/vicky:learn`
 
-## What the loop does (one pass)
+## Contract (what the tool guarantees)
 
-1. **Read WORKFLOW.md** — pick up `default_workflow` and `priority_tags`. If `default_workflow: triage`, only `priority: high` pending notes are drained this pass.
-2. **Drain pending → conclusion stubs**
-   - For each `.vicky/pending/<slug>.md`:
-     - Skip if `.vicky/conclusions/<slug>.md` already exists (idempotent).
-     - Read `## Question` + `## Context` from the pending note.
-     - Query the sources graph for related context.
-     - Write `.vicky/conclusions/<slug>.md` with frontmatter (`type: conclusion`, `tags: [conclusion]`) and embed the graph context as a `## Graph Context` block. The `research` tag is dropped on transition.
-     - Collect every source title referenced by the pending note (frontmatter `sources:` block + body `## Sources` wikilinks) and the graph-context NODE entries, and pass them as `sources:` so the conclusion frontmatter / body get explicit `[[wikilinks]]` to each origin source. `relink` then writes the reverse `related:` edges on every linked source.
-     - Delete the pending note.
-3. **Discover topics** — sample titles from the sources graph that don't yet have a matching conclusion, create `_stub_` conclusion files for the top N (default 10) so they show up in the dashboard's `Orphans` view for follow-up.
-4. **Relink** — run `update_src` + `update_con` via graphify, then `relink_dir` on both sources and conclusions. This writes the `related:` frontmatter block on every note from inbound graph links.
-5. **Notify** — emit a single MCP `info` notification summarising counts: drained, new stubs, relinked.
+For every file in `.vicky/pending/`:
+
+1. **Promote to source** — write `.vicky/sources/<slug>.md` with
+   `type: source`, `tags: [source]`, body = question + context + graph
+   context. Any existing source links from the pending stub end up as
+   `related:` on the new source.
+2. **Derive conclusion** — write `.vicky/conclusions/<slug>.md` with
+   `type: conclusion`, `tags: [conclusion]`, `sources: [[<source-slug>]] + linked source titles`
+   in both frontmatter and a `## Sources` body block.
+3. **Drop the pending stub.**
+4. **Relink** — graphs rebuilt, `related:` frontmatter refreshed on every
+   note across sources and conclusions.
+
+Idempotent: if a conclusion already exists for a pending slug, the
+pending file is dropped without re-running the promotion.
+
+## Routing
+
+`WORKFLOW.md → default_workflow: triage` filters the drain to
+`priority: high` pending notes only. Other priorities stay queued.
 
 ## When to call
 
-| Trigger | Why |
-|---------|-----|
-| User asks "catch up on research" / "process the queue" | Direct call |
-| Pending queue grows past `researchQueueProcessThreshold` | Background trigger (config in vicky.config.json) |
-| After a `/vicky:research` session that enqueued follow-ups | New questions are ready to drain |
-| Periodic — once at end of session, or via external cron | Keep KB fresh |
+- After `/vicky:research` enqueued follow-up questions
+- When the pending queue grows past `researchQueueProcessThreshold`
+- After `git pull` that brought new pending notes
+- Periodic — once per session, or external cron
 
-Do **not** call learn for every user question. It's a batch operation. Use `research-gap` for individual questions.
+Do not call learn for an individual question — use `research-gap` for
+that path.
 
-## Implementation
+## What to do after
 
-The skill is a thin orchestrator over the existing MCP tool:
-
-```
-research                # drains pending, discovers topics, relinks
-```
-
-Or, for finer control:
-
-```
-relink                  # rebuild graphs + related: frontmatter only, no drain
-```
-
-Both run asynchronously in the background — the tool returns immediately, then emits notifications as work completes.
+`/vicky:learn` produces stub conclusions linked to fresh sources. The
+synthesis text (`_derived from pending — fill in synthesis_`) is a
+placeholder. Open `Dashboard.md` or call `dashboard` to see the new
+hubs and orphans, then fill in the conclusion bodies as you read the
+sources.
 
 ## State touched
 
-- `.vicky/pending/*.md`     deleted after drain
-- `.vicky/conclusions/*.md` new stubs + frontmatter updates
-- `.vicky/sources/*.md`     `related:` frontmatter updated
-- `.vicky/graphs/*.json`    rebuilt
+- `.vicky/pending/*.md`       deleted
+- `.vicky/sources/*.md`       added (promoted from pending)
+- `.vicky/conclusions/*.md`   added (derived from new sources)
+- `.vicky/graphs/*.json`      rebuilt
+- `.vicky/sources/*.md`       `related:` updated by relink
+- `.vicky/conclusions/*.md`   `related:` updated by relink
 
-Never overwrites a note's body — only frontmatter blocks (`related:`, `sources:`).
+## Failure modes (handled by the tool)
 
-## Reading the result
-
-After learn runs, call `dashboard` to see:
-- **Pending queue** — should be empty (or only `triage`-skipped low-priority entries)
-- **Recent additions** — new conclusion stubs
-- **Hubs** — updated inlink counts reflect new relinking
-- **Orphans** — stubs without graph hits land here, candidates for `/vicky:research`
-
-## Triage mode
-
-When `.vicky/WORKFLOW.md` has:
-
-```yaml
-default_workflow: triage
-```
-
-`/vicky:learn` only drains pending notes with `priority: high`. Med/low stay queued for a later non-triage pass. Useful when the queue is large and you want signal-first processing.
-
-## Failure modes
-
-- **graphify CLI missing** — relinking is skipped, drain still runs. Install graphify to enable graph queries.
-- **Pending note missing `## Question`** — falls back to filename as the question.
-- **Conclusion stub conflict** (slug already exists) — pending note deleted, no overwrite.
+- **Pending note missing `## Question`** — filename is used as the question.
+- **Slug collision** with existing conclusion — pending dropped, no overwrite.
+- **graphify CLI missing** — relinking falls back to existing graphs; promotion still runs.

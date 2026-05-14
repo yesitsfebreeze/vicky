@@ -22,7 +22,10 @@ export function register(server, notify) {
 
 		(async () => {
 			try {
-				// ⓪ Drain pending research queue → conclusion stubs
+				// ⓪ Drain pending: promote to source, then create derived conclusion.
+				// Contract: every pending note ends up as exactly one source + one
+				// conclusion linked via [[wikilinks]]. Idempotent — if a conclusion
+				// already exists for a pending filename, the pending file is dropped.
 				if (!topic) {
 					const wf = load_workflow();
 					const triage = wf.default_workflow === 'triage';
@@ -33,32 +36,46 @@ export function register(server, notify) {
 					if (triage) pending = pending.filter(x => x.prio === 'high');
 					pending.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
 					pending = pending.map(x => x.pf);
-					let drained = 0;
+					let promoted = 0;
 					for (const pf of pending) {
 						try {
+							const slug = pf.replace(/\.md$/, '');
 							const conPath = join(fs.conclusions(), pf);
 							if (existsSync(conPath)) { delete_pending(pf); continue; }
-							const { question, context, sources: pending_sources } = read_pending(pf);
+							const { question, context, sources: pending_sources, path: pending_path } = read_pending(pf);
+
+							// 1. Promote pending → source. Body preserves question + context.
 							const ctx = await query_graph(question, fs.sources_graph());
 							const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map(m => m[1].trim()) : [];
-							const linked = [...new Set([...pending_sources, ...ctx_titles])];
-							const body = [
-								context ? `## Requested Context\n${context}` : '',
+							const source_body = [
+								`## Question\n${question}`,
+								context ? `## Context\n${context}` : '',
 								ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
-							].filter(Boolean).join('\n\n') || '_pending research_';
-							save_note(question, body, {
+							].filter(Boolean).join('\n\n');
+							save_note(slug, source_body, {
+								dir: fs.sources(),
+								tags: ['source'],
+								type: 'source',
+								related: pending_sources,
+							});
+
+							// 2. Derive conclusion linked to the new source + any prior sources.
+							const linked = [...new Set([slug, ...pending_sources, ...ctx_titles])];
+							save_note(slug, '_derived from pending — fill in synthesis_', {
 								dir: fs.conclusions(),
 								tags: ['conclusion'],
 								type: 'conclusion',
 								sources: linked,
 							});
+
+							// 3. Drop the pending stub.
 							delete_pending(pf);
-							drained++;
+							promoted++;
 						} catch (e) {
 							notify('error', `vicky: drain error on ${pf}: ${e.message.split('\n')[0]}`);
 						}
 					}
-					if (drained) notify('info', `vicky: drained ${drained} pending → conclusion stubs.`);
+					if (promoted) notify('info', `vicky: promoted ${promoted} pending → source + conclusion.`);
 				}
 
 				// ① Discover new topics → create conclusion stubs
