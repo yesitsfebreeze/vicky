@@ -7,7 +7,7 @@
 	"plugins": [
 		{
 			"name": "vicky",
-			"source": ".",
+			"source": "./",
 			"description": "Demand-driven knowledge base. Auto-enrich answers when gaps detected. Drives Obsidian + Dataview."
 		}
 	]
