@@ -1,108 +1,146 @@
-# Vicky MCP Plugin
+# Vicky
 
-Demand-driven knowledge base. Auto-enriches project answers when gaps detected.
-
-Tell your Agent to:
-```
-install https://raw.githubusercontent.com/yesitsfebreeze/vicky/main/README.md
-```
+Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detected. Drives Obsidian + Dataview for live KB views.
 
 ## What it does
 
-- Queries local KB (conclusions + sources graphs)
-- Auto-detects gaps
-- Auto-enqueues web research
-- Enriches conclusions on-demand
-- Zero setup needed
-
-## Install
-
-**Prerequisites:** Node.js 18+, npm 9+
-
-**Setup:**
-```bash
-git clone https://github.com/yesitsfebreeze/vicky ~/.claude/plugins/vicky
-cd ~/.claude/plugins/vicky
-npm install
-cat > .claude-plugin << 'EOF'
-{
-  "name": "vicky",
-  "version": "0.2.0",
-  "mcp": {
-    "command": "node",
-    "args": ["src/index.js"]
-  }
-}
-EOF
-```
-
-**Verify:**
-1. Restart Claude Code
-2. Open project in Claude Code
-3. Test: `mcp__vicky__research_gap "What is adaptive subdivision?"`
-
-## Usage
-
-Call MCP tools directly in any Claude Code prompt:
-
-```
-mcp__vicky__research_gap "What is Phase 5 subdivision?"
-```
-
-- **Found?** Returns KB context + sources
-- **Gap?** Auto-enqueues research
-
-Process gaps when ready:
-```
-mcp__vicky__research
-```
-
-Save findings:
-```
-mcp__vicky__remember "Subdivision key insights"
-```
-
-## Tools
-
-| Tool | Purpose |
-|------|---------|
-| `mcp__vicky__research_gap "q"` | Query KB, auto-enqueue gaps |
-| `mcp__vicky__research` | Process gap queue, enrich conclusions |
-| `mcp__vicky__remember "title"` | Save findings to vault |
-| `mcp__vicky__query "q"` | Direct KB lookup |
-| `mcp__vicky__enqueue "q"` | Manual queue |
-
-## How it works
-
-1. Agent-specific install (see `INSTALL.md` for your agent)
-2. MCP server registered → auto-loads on session start
-3. Call `mcp__vicky__research_gap "question"` directly
-4. Vicky checks local KB (`.vicky/conclusions/`)
-   - Found? → Return context + sources
-   - Gap? → Auto-queue in `.vicky/pending/`
-5. Run `mcp__vicky__research` to process queue
-6. Tools enrich KB for future questions
-
-Zero setup. Just call MCP tools directly.
-
-## Agent-Specific Installation
-
-Each agent has its own install script:
-- **Claude Code:** See `agents/claude/INSTALL.md`
-- **Claude API:** See `agents/api/INSTALL.md`
-- **Other agents:** See `INSTALL.md` (generic guide)
-
-## Architecture
-
-```
-.vicky/
-├── sources/           # Web research, papers, external docs
-├── conclusions/       # Synthesized knowledge
-├── pending/           # Queued research questions
-└── graphs/            # Knowledge graphs
-```
+- Local KB of sources + conclusions, queried by your agent
+- Detects gaps in your question, auto-enqueues research
+- Processes the queue when you ask, enriches conclusions
+- Exposes Dataview (DQL) directly to the agent for arbitrary KB queries
+- Ships an Obsidian vault preset (Dataview pre-configured)
 
 ## Requirements
 
 - Node.js 18+
-- Graphify CLI (optional, for code graph extraction)
+- [Obsidian](https://obsidian.md) (for `dashboard` / `dql` tools)
+- Any MCP-capable agent (Claude Code, Claude API, Cursor, etc.)
+
+## Install
+
+One-shot for any agent — clone, install, register MCP, open vault.
+
+```bash
+# 1. Clone wherever your agent stores plugins / skills
+git clone https://github.com/yesitsfebreeze/vicky ~/vicky
+cd ~/vicky
+npm install
+
+# 2. Register the MCP server in your agent
+#    Command:   node
+#    Args:      ["<absolute path to>/vicky/src/index.js"]
+#
+#    Example for Claude Code (user scope):
+claude mcp add vicky --scope user node "$HOME/vicky/src/index.js"
+#
+#    Example .mcp.json (any agent that reads it):
+#    {
+#      "mcpServers": {
+#        "vicky": { "command": "node", "args": ["~/vicky/src/index.js"] }
+#      }
+#    }
+
+# 3. Restart your agent. First session triggers init():
+#      - Creates .vicky/{sources,conclusions,pending,graphs}
+#      - Scaffolds the Obsidian preset (.obsidian/, Dashboard.md, WORKFLOW.md, _index.md)
+
+# 4. Open .vicky/ in Obsidian, enable the Dataview plugin (preset auto-installs it on first open).
+```
+
+That's the whole setup. No agent-specific steps.
+
+## Update
+
+```bash
+cd ~/vicky && git pull && npm install
+```
+
+Restart the agent so the MCP server reloads. `.vicky/` is yours — `init()` never overwrites existing files.
+
+## Tools (MCP)
+
+| Tool | Purpose |
+|------|---------|
+| `research-gap "q"` | Query KB; auto-enqueue if gap |
+| `research`         | Drain pending queue → conclusion stubs |
+| `query "q"`        | Direct KB lookup (focus-biased) |
+| `remember "title"` | Save findings to vault |
+| `enqueue "q"`      | Manual queue add |
+| `dashboard`        | KB report via Obsidian + Dataview |
+| `dql "<query>"`    | Run arbitrary DQL. `query="help"` for syntax |
+| `relink`           | Rebuild link graph |
+| `web-search`       | Web research helper |
+
+## Layout
+
+```
+~/vicky/                     # the skill (clone target)
+├── src/                     # MCP server + tools
+├── obsidian/                # template scaffolded into .vicky/ on init
+└── README.md                # this file
+
+<your project>/.vicky/       # created by init() in each project
+├── sources/                 # external research, papers
+├── conclusions/             # synthesized knowledge
+├── pending/                 # queued research questions
+├── graphs/                  # knowledge graphs
+├── .obsidian/               # Obsidian vault config (Dataview enabled)
+├── WORKFLOW.md              # focus, rules, routing (edit to steer Vicky)
+└── Dashboard.md             # live Dataview views
+```
+
+## WORKFLOW.md
+
+Single source of truth for runtime behavior. Edit frontmatter:
+
+```yaml
+active_focus: [perf, nanite]      # bias query results + Dashboard
+priority_tags: [blocker]
+auto_enqueue: true                # false = gaps don't auto-queue
+default_workflow: default         # default | deep-dive | triage
+```
+
+Sections: `Focus`, `Active Rules`, `Workflows`, `Routing` (regex → workflow). Re-read on every tool call.
+
+## Dataview / DQL
+
+Vicky drives `obsidian.exe eval` to run real DQL inside Obsidian's Dataview plugin. Same engine as the human-facing Dashboard.md, no separate renderer.
+
+Full DQL reference: <https://blacksmithgu.github.io/obsidian-dataview/queries/structure/>
+
+Top queries the agent uses:
+
+```
+# Hubs (most-referenced)
+TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks
+FROM "conclusions" OR "sources"
+WHERE length(file.inlinks) > 0
+SORT length(file.inlinks) DESC LIMIT 20
+
+# Pending queue, priority-sorted
+TABLE WITHOUT ID file.link AS Q, priority, requested_by, date
+FROM "pending"
+WHERE status = "pending"
+SORT choice(priority="high",0,choice(priority="med",1,2)) ASC
+
+# Recent additions
+TABLE date, type, tags FROM "."
+WHERE date AND date(date) >= date(today) - dur(14 days)
+SORT date DESC LIMIT 25
+
+# Orphans
+LIST FROM "conclusions" OR "sources"
+WHERE length(file.inlinks)=0 AND length(file.outlinks)=0
+```
+
+## Env overrides
+
+| Var               | Default                     | Use |
+|-------------------|-----------------------------|-----|
+| `VICKY_ROOT`      | `<cwd>/.vicky`              | Move vault outside CWD |
+| `OBSIDIAN_EXE`    | autodetected                | Custom Obsidian binary path |
+| `OBSIDIAN_VAULT`  | basename of `VICKY_ROOT`    | Override registered vault name |
+
+## License
+
+MIT.
