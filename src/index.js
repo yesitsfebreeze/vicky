@@ -32,7 +32,7 @@ try {
 
 const server = new McpServer({
 	name: 'vicky',
-	version: '0.2.0',
+	version: '0.3.0',
 	description: config.description || 'Demand-driven KB: auto-enrich via research-gap'
 });
 

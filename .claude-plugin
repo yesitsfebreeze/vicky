@@ -1,7 +1,7 @@
 {
   "name": "vicky",
   "displayName": "Vicky KB",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Demand-driven knowledge base. Auto-enrich answers when gaps detected. SessionStart bootstraps vault, auto-processes research gaps.",
   "author": "sayhe",
   "license": "MIT",
