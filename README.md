@@ -20,8 +20,9 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 
 ### Claude Code (plugin)
 
-```bash
-claude plugin install vicky@yesitsfebreeze/vicky
+```
+/plugin marketplace add yesitsfebreeze/vicky
+/plugin install vicky@vicky
 ```
 
 Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky` skill. First session scaffolds `.vicky/{sources,conclusions,pending,graphs}` plus the Obsidian preset (`.obsidian/`, `Dashboard.md`, `WORKFLOW.md`, folder indexes).

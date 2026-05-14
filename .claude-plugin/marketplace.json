@@ -1,0 +1,14 @@
+{
+	"name": "vicky",
+	"owner": {
+		"name": "febreeze",
+		"url": "https://github.com/yesitsfebreeze"
+	},
+	"plugins": [
+		{
+			"name": "vicky",
+			"source": ".",
+			"description": "Demand-driven knowledge base. Auto-enrich answers when gaps detected. Drives Obsidian + Dataview."
+		}
+	]
+}
