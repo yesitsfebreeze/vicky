@@ -15,7 +15,7 @@ A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown not
 | Skill | When |
 |-------|------|
 | `setup` | Auto-fires on SessionStart. Re-invoke after `/compact` to restore context. |
-| `index [<path>]` | Codebase → KB sync. Diffs against last index, extracts new/changed files into `.vicky/sources/code/`. |
+| `index [<path>]` | Docs → KB sync. Mirrors changed `*.md` / `*.mdx` / `*.rst` / `*.txt` outside `.vicky/` into `.vicky/sources/docs/`. Never indexes source code. |
 | `learn` | Drain the pending queue into conclusion stubs and refresh link graphs. Batch op. |
 | `research "<topic>"` | Topic-focused web research → sources + follow-up questions. |
 | `experiment` | Autonomous code-optimisation loop. Reads `experiment.md`, runs in worktrees, learns time estimates. |

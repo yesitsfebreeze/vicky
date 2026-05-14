@@ -44,7 +44,7 @@ export function register(server, notify) {
 								context ? `## Requested Context\n${context}` : '',
 								ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
 							].filter(Boolean).join('\n\n') || '_pending research_';
-							save_note(question, body, { dir: fs.conclusions(), tags: ['conclusion', 'from-queue'], type: 'conclusion' });
+							save_note(question, body, { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
 							delete_pending(pf);
 							drained++;
 						} catch (e) {

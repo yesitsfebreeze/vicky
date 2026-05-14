@@ -20,7 +20,7 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction in Vulkan"
    - Score by relevance to the topic + alignment with `active_focus`
    - Reject low-signal pages (paywalls, link farms, off-topic)
 5. **Save sources** — for each kept result, call `remember title="<page title>" content="<extracted markdown>"` with:
-   - `tags: [research, <topic-slug>, ...active_focus matches]`
+   - `tags: [source, <topic-slug>, ...active_focus matches]` (always `source`, never `research` — the `research` tag is reserved for items still pending)
    - URL + author + date in body
    - Quoted key passages preserved verbatim
 6. **Extract follow-up questions** — scan the read content for:
@@ -32,7 +32,7 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction in Vulkan"
    - One-paragraph summary
    - `## Sources` listing each saved source as `[[wikilink]]`
    - `## Open Questions` listing the enqueued follow-ups
-   - `type: conclusion`, `tags: [conclusion, research]`
+   - `type: conclusion`, `tags: [conclusion]` (drop `research` tag — the conclusion is no longer pending)
 8. **Relink** — call `relink` so the new sources + conclusion appear in graphs and `related:` frontmatter.
 9. **Report** — summarise: N sources saved, M follow-ups enqueued, conclusion stub path, dashboard hint.
 

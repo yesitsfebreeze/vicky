@@ -16,7 +16,8 @@ export function register(server) {
 	}, async ({ title, content, folder, tags = [] }) => {
 		await ensure_init();
 		const dir = folder ? join(fs.sources(), folder) : fs.sources();
-		const path = save_note(title, content, { dir, tags, type: 'source' });
+		const merged = Array.from(new Set(['source', ...tags.filter(t => t !== 'research')]));
+		const path = save_note(title, content, { dir, tags: merged, type: 'source' });
 		return { content: [{ type: 'text', text: `Saved: ${path}` }] };
 	});
 }
