@@ -4,10 +4,14 @@
   "description": "Vicky KB: demand-driven knowledge base. Auto-enrich answers when gaps detected.",
   "type": "module",
   "main": "src/index.js",
-  "bin": { "vicky": "src/index.js" },
+  "bin": {
+    "vicky": "src/index.js",
+    "vicky-dashboard": "src/dashboard.js"
+  },
   "scripts": {
     "start": "node src/index.js",
-    "init": "node ~/.claude/skills/vicky/init.mjs"
+    "init": "node ~/.claude/skills/vicky/init.mjs",
+    "dashboard": "node src/dashboard.js"
   },
   "keywords": [
     "knowledge-base",

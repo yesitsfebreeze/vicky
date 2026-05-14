@@ -3,6 +3,7 @@ import { SRC_GRAPH, CON_GRAPH, SRC, CON } from '../conf.js';
 import { query_graph } from '../graph.js';
 import { search } from '../vault.js';
 import { ensure_init } from '../init.js';
+import { bias_by_focus, get_workflow_for } from '../workflow.js';
 
 export function register(server) {
 	server.registerTool('query', {
@@ -32,6 +33,8 @@ export function register(server) {
 			};
 		}
 
-		return { content: [{ type: 'text', text: `Question: ${question}\n\nKnowledge:\n${parts.join('\n\n').slice(0, 4000)}` }] };
+		const body = bias_by_focus(parts.join('\n\n')).slice(0, 4000);
+		const wf = get_workflow_for(question);
+		return { content: [{ type: 'text', text: `Question: ${question}\nWorkflow: ${wf}\n\nKnowledge:\n${body}` }] };
 	});
 }

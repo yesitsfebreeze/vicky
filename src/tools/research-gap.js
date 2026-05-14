@@ -3,6 +3,7 @@ import { SRC_GRAPH, CON_GRAPH, SRC, CON } from '../conf.js';
 import { query_graph } from '../graph.js';
 import { search, enqueue_research, list_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
+import { should_auto_enqueue, get_workflow_for, bias_by_focus } from '../workflow.js';
 
 export function register(server, notify) {
 	server.registerTool('research-gap', {
@@ -28,31 +29,37 @@ export function register(server, notify) {
 			parts = [vault_con, vault_src].filter(Boolean);
 		}
 
-		// Found answer - return it
+		const workflow = get_workflow_for(question);
+
+		// Found answer - return it (biased by active_focus)
 		if (parts.length) {
+			const body = bias_by_focus(parts.join('\n\n')).slice(0, 4000);
 			return {
 				content: [{
 					type: 'text',
-					text: `✓ Knowledge found.\n\nQuestion: ${question}\n\nContext:\n${parts.join('\n\n').slice(0, 4000)}`
+					text: `✓ Knowledge found.\n\nQuestion: ${question}\nWorkflow: ${workflow}\n\nContext:\n${body}`
 				}]
 			};
 		}
 
+		// Honor WORKFLOW.md `auto_enqueue` unless caller explicitly overrides
+		const should = auto_research && should_auto_enqueue();
+
 		// Gap found - auto-enqueue web research if enabled
-		if (auto_research) {
+		if (should) {
 			const pending = list_pending();
 			const alreadyEnqueued = pending.some(f =>
 				f.toLowerCase().includes(question.slice(0, 20).toLowerCase().replace(/[^\w]/g, ''))
 			);
 
 			if (!alreadyEnqueued) {
-				enqueue_research(question);
-				notify('info', `vicky: auto-enqueued research for "${question}"`);
+				enqueue_research(question, { requested_by: workflow });
+				notify('info', `vicky: auto-enqueued research for "${question}" (workflow: ${workflow})`);
 
 				return {
 					content: [{
 						type: 'text',
-						text: `✗ Knowledge gap: "${question}"\n\nAuto-enqueued for research. Run /vic:research to process.`
+						text: `✗ Knowledge gap: "${question}"\n\nWorkflow: ${workflow}\nAuto-enqueued for research. Run /vic:research to process.`
 					}]
 				};
 			} else {

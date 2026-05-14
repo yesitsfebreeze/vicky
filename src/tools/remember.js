@@ -10,7 +10,7 @@ export function register(server) {
 		inputSchema: {
 			title:   z.string().describe('Topic title'),
 			content: z.string().describe('Key points or findings (markdown)'),
-			folder:  z.string().optional().describe('Subfolder inside vicky/ (e.g. "nanite", "physics")'),
+			folder:  z.string().optional().describe('Subfolder inside .vicky/sources (e.g. "nanite", "physics")'),
 			tags:    z.array(z.string()).optional().describe('Tags'),
 		},
 	}, async ({ title, content, folder, tags = [] }) => {

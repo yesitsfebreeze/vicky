@@ -6,6 +6,7 @@ import { query_graph, list_titles_from_graph } from '../graph.js';
 import { relink_dir } from '../link.js';
 import { save_note, list_con_files, list_pending, read_pending, delete_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
+import { load_workflow } from '../workflow.js';
 
 export function register(server, notify) {
 	server.registerTool('research', {
@@ -23,7 +24,15 @@ export function register(server, notify) {
 			try {
 				// ⓪ Drain pending research queue → conclusion stubs
 				if (!topic) {
-					const pending = list_pending();
+					const wf = load_workflow();
+					const triage = wf.default_workflow === 'triage';
+					const prio_rank = p => (p === 'high' ? 0 : p === 'med' ? 1 : 2);
+					let pending = list_pending()
+						.map(pf => ({ pf, info: (() => { try { return read_pending(pf); } catch { return {}; } })() }))
+						.map(x => ({ ...x, prio: (x.info && x.info.priority) || 'med' }));
+					if (triage) pending = pending.filter(x => x.prio === 'high');
+					pending.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
+					pending = pending.map(x => x.pf);
 					let drained = 0;
 					for (const pf of pending) {
 						try {

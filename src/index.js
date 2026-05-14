@@ -13,6 +13,8 @@ import * as enqueue     from './tools/enqueue.js';
 import * as webSearch   from './tools/web-research.js';
 import * as promote     from './tools/promote.js';
 import * as completeResearch from './tools/complete-research.js';
+import * as dashboard   from './tools/dashboard.js';
+import * as dql         from './tools/dql.js';
 
 // Load config with defaults
 let config = {
@@ -53,6 +55,8 @@ enqueue.register(server);
 webSearch.register(server, notify);
 promote.register(server);
 completeResearch.register(server);
+dashboard.register(server);
+dql.register(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
