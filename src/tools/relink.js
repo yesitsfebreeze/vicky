@@ -12,8 +12,17 @@ export function register(server, notify) {
 		(async () => {
 			try {
 				notify('info', 'vicky relink: updating KB graph...');
-				await update_kb();
-				notify('info', 'vicky relink: querying graph for all files...');
+				const upd = await update_kb();
+				if (upd && upd.ok === false) {
+					const hint = upd.reason === 'no_backend'
+						? 'set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY) and retry'
+						: upd.reason === 'graphify_missing'
+							? 'run `npm install` in the vicky plugin root'
+							: 'corpus may be too small for a graph';
+					notify('info', `vicky relink: graph not produced (${upd.reason}) — ${hint}.`);
+					return;
+				}
+				notify('info', `vicky relink: graph built via ${upd?.backend ?? 'graphify'}; querying for related links...`);
 				const graph = fs.kb_graph();
 				const [src, con] = await Promise.all([
 					relink_dir(fs.sources(), graph),

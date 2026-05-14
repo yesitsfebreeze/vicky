@@ -21165,12 +21165,25 @@ async function checkGraphify() {
   }
   return graphifyAvailable;
 }
+function detect_backend() {
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return "gemini";
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (process.env.OPENAI_API_KEY) return "openai";
+  if (process.env.MISTRAL_API_KEY) return "mistral";
+  if (process.env.COHERE_API_KEY) return "cohere";
+  return null;
+}
 var update_kb = async () => {
-  if (!await checkGraphify()) return;
+  if (!await checkGraphify()) return { ok: false, reason: "graphify_missing" };
+  const backend = detect_backend();
+  if (!backend) {
+    console.error("[vicky] no LLM API key in env (GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY / MISTRAL_API_KEY / COHERE_API_KEY). Semantic graph extraction skipped.");
+    return { ok: false, reason: "no_backend" };
+  }
   const root2 = resolve(root());
-  await sh_bg(`${graphifyCmd} update "${root2}"`, { cwd: root2 });
+  await sh_bg(`${graphifyCmd} extract "${root2}" --scope all --backend ${backend}`, { cwd: root2 });
   const graph = kb_graph();
-  if (!existsSync(graph)) return;
+  if (!existsSync(graph)) return { ok: false, reason: "no_graph_produced" };
   const wikiDir = graphs();
   await sh_bg(`${graphifyCmd} export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root2 });
   const idx = join2(wikiDir, "index.md");
@@ -21180,6 +21193,7 @@ var update_kb = async () => {
     } catch {
     }
   }
+  return { ok: true, backend };
 };
 async function query_graph(question, graph = kb_graph(), prefix = null) {
   if (!existsSync(graph)) return "";
@@ -21763,8 +21777,13 @@ function register5(server2, notify2) {
     (async () => {
       try {
         notify2("info", "vicky relink: updating KB graph...");
-        await update_kb();
-        notify2("info", "vicky relink: querying graph for all files...");
+        const upd = await update_kb();
+        if (upd && upd.ok === false) {
+          const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY) and retry" : upd.reason === "graphify_missing" ? "run `npm install` in the vicky plugin root" : "corpus may be too small for a graph";
+          notify2("info", `vicky relink: graph not produced (${upd.reason}) \u2014 ${hint}.`);
+          return;
+        }
+        notify2("info", `vicky relink: graph built via ${upd?.backend ?? "graphify"}; querying for related links...`);
         const graph = kb_graph();
         const [src, con] = await Promise.all([
           relink_dir(sources(), graph),

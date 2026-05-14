@@ -38,18 +38,33 @@ async function checkGraphify() {
 	return graphifyAvailable;
 }
 
+function detect_backend() {
+	if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return 'gemini';
+	if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+	if (process.env.OPENAI_API_KEY) return 'openai';
+	if (process.env.MISTRAL_API_KEY) return 'mistral';
+	if (process.env.COHERE_API_KEY) return 'cohere';
+	return null;
+}
+
 export const update_kb = async () => {
-	if (!(await checkGraphify())) return;
+	if (!(await checkGraphify())) return { ok: false, reason: 'graphify_missing' };
+	const backend = detect_backend();
+	if (!backend) {
+		console.error('[vicky] no LLM API key in env (GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY / MISTRAL_API_KEY / COHERE_API_KEY). Semantic graph extraction skipped.');
+		return { ok: false, reason: 'no_backend' };
+	}
 	const root = resolve(fs.root());
-	await sh_bg(`${graphifyCmd} update "${root}"`, { cwd: root });
+	await sh_bg(`${graphifyCmd} extract "${root}" --scope all --backend ${backend}`, { cwd: root });
 	const graph = fs.kb_graph();
-	if (!existsSync(graph)) return;
+	if (!existsSync(graph)) return { ok: false, reason: 'no_graph_produced' };
 	const wikiDir = fs.graphs();
 	await sh_bg(`${graphifyCmd} export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root });
 	const idx = join(wikiDir, 'index.md');
 	if (existsSync(idx)) {
 		try { renameSync(idx, fs.kb_wiki()); } catch { /* ignore */ }
 	}
+	return { ok: true, backend };
 };
 
 export async function query_graph(question, graph = fs.kb_graph(), prefix = null) {
