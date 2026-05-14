@@ -17,8 +17,8 @@ export function register(server, notify) {
 
 		// Query KB with graph first
 		const [con, src] = await Promise.all([
-			query_graph(question, fs.con_graph()),
-			query_graph(question, fs.src_graph()),
+			query_graph(question, fs.conclusions_graph()),
+			query_graph(question, fs.sources_graph()),
 		]);
 		let parts = [con, src].filter(Boolean);
 

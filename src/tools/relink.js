@@ -15,8 +15,8 @@ export function register(server, notify) {
 				await Promise.all([update_src(), update_con()]);
 				notify('info', 'vicky relink: querying graph for all files...');
 				const [src, con] = await Promise.all([
-					relink_dir(fs.sources(), fs.src_graph()),
-					relink_dir(fs.conclusions(), fs.con_graph()),
+					relink_dir(fs.sources(), fs.sources_graph()),
+					relink_dir(fs.conclusions(), fs.conclusions_graph()),
 				]);
 				notify('info', `vicky relink done: ${src.patched + con.patched} relinked (${src.patched}/${src.total} sources, ${con.patched}/${con.total} conclusions).`);
 			} catch (e) {

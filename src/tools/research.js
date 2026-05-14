@@ -39,7 +39,7 @@ export function register(server, notify) {
 							const conPath = join(fs.conclusions(), pf);
 							if (existsSync(conPath)) { delete_pending(pf); continue; }
 							const { question, context } = read_pending(pf);
-							const ctx = await query_graph(question, fs.src_graph());
+							const ctx = await query_graph(question, fs.sources_graph());
 							const body = [
 								context ? `## Requested Context\n${context}` : '',
 								ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
@@ -59,7 +59,7 @@ export function register(server, notify) {
 					const conTitles = list_con_files().map(f => f.replace(/\.md$/, ''));
 					const norm = s => s.toLowerCase().replace(/[^\w]/g, '');
 					const conNorms = conTitles.map(norm);
-					const newTopics = list_titles_from_graph(fs.src_graph())
+					const newTopics = list_titles_from_graph(fs.sources_graph())
 						.filter(t => t.length > 10)
 						.filter(t => {
 							const n = norm(t).slice(0, 30);
@@ -68,7 +68,7 @@ export function register(server, notify) {
 						.sort(() => Math.random() - 0.5)
 						.slice(0, Math.floor(n / 2));
 					for (const t of newTopics) {
-						const ctx = await query_graph(t, fs.src_graph());
+						const ctx = await query_graph(t, fs.sources_graph());
 						const body = ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '_No graph context yet._';
 						save_note(t, body, { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
 					}
@@ -88,8 +88,8 @@ export function register(server, notify) {
 				// ③ Relink (updates graphs + writes related: frontmatter)
 				notify('info', 'vicky: relinking...');
 				const [src, con] = await Promise.all([
-					relink_dir(fs.sources(), fs.src_graph()),
-					relink_dir(fs.conclusions(), fs.con_graph()),
+					relink_dir(fs.sources(), fs.sources_graph()),
+					relink_dir(fs.conclusions(), fs.conclusions_graph()),
 				]);
 				notify('info', `vicky done: ${src.patched + con.patched} relinked.`);
 			} catch (e) {

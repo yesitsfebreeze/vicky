@@ -1,31 +1,33 @@
 import { z } from 'zod';
+import { basename } from 'path';
 import { run_dql } from '../dashboard.js';
 import { ensure_init } from '../init.js';
 
-const DOCS = `DQL = Dataview Query Language. Reference: https://blacksmithgu.github.io/obsidian-dataview/queries/structure/
+const DOCS = `DQL — Dataview Query Language.
+Reference: https://blacksmithgu.github.io/obsidian-dataview/queries/structure/
 
 Forms:
-  LIST [<expr>] FROM <source> [WHERE …] [SORT …] [LIMIT n]
-  TABLE [WITHOUT ID] col1 AS "Header", col2 … FROM <source> …
-  TASK FROM <source> …
+  LIST [<expr>] FROM <source> [WHERE ...] [SORT ...] [LIMIT n]
+  TABLE [WITHOUT ID] col1 AS "Header", col2 ... FROM <source> ...
+  TASK FROM <source> ...
   CALENDAR <date-field> FROM <source>
 
 Sources:
-  "folder"        — pages in folder
-  "a" OR "b"      — union
-  "a" AND -"b"    — intersection minus
-  #tag            — by tag
-  [[Note]]        — outlinks of Note
+  "folder"        pages in folder
+  "a" OR "b"      union
+  "a" AND -"b"    intersection minus
+  #tag            by tag
+  [[Note]]        outlinks of Note
 
-Useful fields:
+Fields:
   file.link, file.name, file.folder, file.path
-  file.inlinks, file.outlinks (length(…) for count)
+  file.inlinks, file.outlinks    (use length() for count)
   file.ctime, file.mtime, file.size
-  <any frontmatter key>: type, date, tags, priority, status
+  <any frontmatter key>          e.g. type, date, tags, priority, status
 
 Functions:
-  length(list), choice(cond,a,b), contains(list,val), date(today),
-  dur("14 days"), regexmatch(pat,str), lower(s), startswith(s,prefix)
+  length(list), choice(cond, a, b), contains(list, val), date(today),
+  dur("14 days"), regexmatch(pat, str), lower(s), startswith(s, prefix)
 
 Examples:
   TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks
@@ -39,11 +41,38 @@ Examples:
   WHERE status = "pending"
   SORT choice(priority = "high", 0, 1) ASC`;
 
+function cell(value) {
+	if (value && typeof value === 'object' && value.path) return basename(value.path, '.md');
+	if (Array.isArray(value)) return value.map(cell).join(' ');
+	return value == null ? '' : String(value);
+}
+
+function format_table(result, query_text) {
+	const header = `> \`${query_text.replace(/\s+/g, ' ').slice(0, 200)}\``;
+	const columns = result.headers;
+	const rows = (result.values || []).map(row => `| ${row.map(cell).join(' | ')} |`);
+	const separator = `| ${columns.map(() => '---').join(' | ')} |`;
+	return `${header}\n\n| ${columns.join(' | ')} |\n${separator}\n${rows.join('\n') || '_empty_'}`;
+}
+
+function format_list(result, query_text) {
+	const header = `> \`${query_text.replace(/\s+/g, ' ').slice(0, 200)}\``;
+	const items = (result.values || []).map(value => `- ${cell(value)}`);
+	return `${header}\n\n${items.join('\n') || '_empty_'}`;
+}
+
+function format_result(result, query_text) {
+	if (result?.error) return `_${result.error}_`;
+	if (result?.headers) return format_table(result, query_text);
+	if (result?.type === 'list' || Array.isArray(result?.values)) return format_list(result, query_text);
+	return `\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+}
+
 export function register(server) {
 	server.registerTool('dql', {
-		description: 'Run a Dataview Query Language (DQL) query against the .vicky vault via Obsidian. Vault must be open in Obsidian with Dataview plugin enabled. Use no args (or query="help") to get DQL syntax docs.',
+		description: 'Run a Dataview Query Language (DQL) query against the vault via Obsidian. Requires the vault to be open in Obsidian with the Dataview plugin enabled. Call with query="help" to get the syntax reference.',
 		inputSchema: {
-			query: z.string().optional().describe('DQL query (TABLE/LIST/TASK). Omit or pass "help" for docs.'),
+			query: z.string().optional().describe('DQL query (TABLE / LIST / TASK / CALENDAR). Omit or pass "help" for docs.'),
 			format: z.enum(['markdown', 'json']).optional().describe('Result format (default: markdown)'),
 		},
 	}, async ({ query, format = 'markdown' }) => {
@@ -53,37 +82,12 @@ export function register(server) {
 		}
 		try {
 			const result = run_dql(query);
-			if (format === 'json') {
-				return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-			}
-			return { content: [{ type: 'text', text: format_result(result, query) }] };
+			const text = format === 'json'
+				? JSON.stringify(result, null, 2)
+				: format_result(result, query);
+			return { content: [{ type: 'text', text }] };
 		} catch (e) {
-			return { content: [{ type: 'text', text: `DQL error: ${e.message}` }], isError: true };
+			return { content: [{ type: 'text', text: `dql: ${e.message}` }], isError: true };
 		}
 	});
-}
-
-function strip_cell(cell) {
-	if (cell && typeof cell === 'object' && cell.path) {
-		const name = cell.path.replace(/\\/g, '/').split('/').pop().replace(/\.md$/, '');
-		return name;
-	}
-	if (Array.isArray(cell)) return cell.map(strip_cell).join(' ');
-	return cell == null ? '' : String(cell);
-}
-
-function format_result(result, query) {
-	const header = `> \`${query.replace(/\n/g, ' ').slice(0, 200)}\``;
-	if (!result || result.error) return `${header}\n\n_${result?.error || 'no result'}_`;
-	if (result.type === 'table' || result.headers) {
-		const headers = result.headers;
-		const rows = (result.values || []).map(r => `| ${r.map(strip_cell).join(' | ')} |`);
-		const sep = `| ${headers.map(() => '---').join(' | ')} |`;
-		return `${header}\n\n| ${headers.join(' | ')} |\n${sep}\n${rows.join('\n') || '_empty_'}`;
-	}
-	if (result.type === 'list') {
-		const items = (result.values || []).map(v => `- ${strip_cell(v)}`);
-		return `${header}\n\n${items.join('\n') || '_empty_'}`;
-	}
-	return `${header}\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
 }

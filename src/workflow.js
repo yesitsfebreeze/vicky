@@ -1,7 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'fs';
-
 import * as fs from './fs.js';
-const WF_PATH = () => fs.workflow_md();
 
 const DEFAULTS = {
 	active_focus: [],
@@ -77,7 +75,7 @@ let cache = null;
 let cache_mtime = 0;
 
 export function load_workflow() {
-	const path = WF_PATH();
+	const path = fs.workflow_md();
 	if (!existsSync(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
 	try {
 		const { mtimeMs } = statSync(path);

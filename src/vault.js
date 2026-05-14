@@ -91,9 +91,8 @@ export function delete_pending(file) {
 }
 
 export function list_con_files() {
-	const CON = fs.conclusions();
-	if (!existsSync(CON)) return [];
-	return readdirSync(CON).filter(f => f.endsWith('.md') && !f.startsWith('README') && !f.startsWith('_'));
+	if (!existsSync(fs.conclusions())) return [];
+	return readdirSync(fs.conclusions()).filter(f => f.endsWith('.md') && !f.startsWith('README') && !f.startsWith('_'));
 }
 
 
