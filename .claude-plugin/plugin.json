@@ -17,5 +17,12 @@
 		"obsidian",
 		"demand-driven",
 		"gap-detection"
-	]
+	],
+	"mcpServers": {
+		"vicky": {
+			"command": "node",
+			"args": ["${CLAUDE_PLUGIN_ROOT}/src/index.js"],
+			"description": "Vicky: demand-driven knowledge base"
+		}
+	}
 }
