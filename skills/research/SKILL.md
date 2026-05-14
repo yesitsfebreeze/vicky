@@ -23,6 +23,7 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction in Vulkan"
    - `tags: [source, <topic-slug>, ...active_focus matches]` (always `source`, never `research` — the `research` tag is reserved for items still pending)
    - URL + author + date in body
    - Quoted key passages preserved verbatim
+   - Pass any upstream notes that prompted this lookup via the `sources` arg so the new source carries `sources: [[...]]` frontmatter + a `## Sources` body block. The reverse edge lands automatically via `relink`.
 6. **Extract follow-up questions** — scan the read content for:
    - Terms the source assumes the reader knows (jargon → "what is X?" follow-ups)
    - Open problems / "future work" sections
@@ -30,7 +31,7 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction in Vulkan"
    For each follow-up, call `enqueue "<question>"` with `requested_by: research`, `priority: med` by default (or `high` if the question blocks the original topic).
 7. **Write topic conclusion stub** — call `remember title="<topic>" folder="conclusions"` with:
    - One-paragraph summary
-   - `## Sources` listing each saved source as `[[wikilink]]`
+   - `sources: [<each saved source title>]` — the helper writes them as `[[wikilinks]]` in both frontmatter and a `## Sources` body block, so the conclusion is graph-connected to every source it derives from
    - `## Open Questions` listing the enqueued follow-ups
    - `type: conclusion`, `tags: [conclusion]` (drop `research` tag — the conclusion is no longer pending)
 8. **Relink** — call `relink` so the new sources + conclusion appear in graphs and `related:` frontmatter.

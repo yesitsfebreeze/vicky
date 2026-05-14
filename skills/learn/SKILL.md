@@ -16,7 +16,8 @@ Invoke: `/vicky:learn`
      - Skip if `.vicky/conclusions/<slug>.md` already exists (idempotent).
      - Read `## Question` + `## Context` from the pending note.
      - Query the sources graph for related context.
-     - Write `.vicky/conclusions/<slug>.md` with frontmatter (`type: conclusion`, `tags: [conclusion]`), embed the graph context as a `## Graph Context` block. The `research` tag is dropped on transition — pending notes use `tags: [research, pending]`, but once drained into a conclusion the artefact is no longer pending so its tag changes accordingly.
+     - Write `.vicky/conclusions/<slug>.md` with frontmatter (`type: conclusion`, `tags: [conclusion]`) and embed the graph context as a `## Graph Context` block. The `research` tag is dropped on transition.
+     - Collect every source title referenced by the pending note (frontmatter `sources:` block + body `## Sources` wikilinks) and the graph-context NODE entries, and pass them as `sources:` so the conclusion frontmatter / body get explicit `[[wikilinks]]` to each origin source. `relink` then writes the reverse `related:` edges on every linked source.
      - Delete the pending note.
 3. **Discover topics** — sample titles from the sources graph that don't yet have a matching conclusion, create `_stub_` conclusion files for the top N (default 10) so they show up in the dashboard's `Orphans` view for follow-up.
 4. **Relink** — run `update_src` + `update_con` via graphify, then `relink_dir` on both sources and conclusions. This writes the `related:` frontmatter block on every note from inbound graph links.

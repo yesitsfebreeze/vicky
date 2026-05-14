@@ -38,13 +38,20 @@ export function register(server, notify) {
 						try {
 							const conPath = join(fs.conclusions(), pf);
 							if (existsSync(conPath)) { delete_pending(pf); continue; }
-							const { question, context } = read_pending(pf);
+							const { question, context, sources: pending_sources } = read_pending(pf);
 							const ctx = await query_graph(question, fs.sources_graph());
+							const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map(m => m[1].trim()) : [];
+							const linked = [...new Set([...pending_sources, ...ctx_titles])];
 							const body = [
 								context ? `## Requested Context\n${context}` : '',
 								ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
 							].filter(Boolean).join('\n\n') || '_pending research_';
-							save_note(question, body, { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
+							save_note(question, body, {
+								dir: fs.conclusions(),
+								tags: ['conclusion'],
+								type: 'conclusion',
+								sources: linked,
+							});
 							delete_pending(pf);
 							drained++;
 						} catch (e) {

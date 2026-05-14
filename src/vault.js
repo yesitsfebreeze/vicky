@@ -30,40 +30,56 @@ export function search(dir, query) {
 const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
 const safe_link = t => t.replace(/["'[\]|#^\\]/g, '').trim();
 
-export function save_note(title, body, { dir = fs.sources(), tags = [], type = 'source' } = {}) {
+function wikilink_block(heading, items) {
+	const links = items.map(t => `- [[${safe_link(t)}]]`).join('\n');
+	return `\n\n## ${heading}\n${links}\n`;
+}
+
+function frontmatter_links(key, items) {
+	if (!items?.length) return '';
+	return `\n${key}:\n${items.map(t => `  - "[[${safe_link(t)}]]"`).join('\n')}`;
+}
+
+export function save_note(title, body, { dir = fs.sources(), tags = [], type = 'source', sources = [], related = [] } = {}) {
 	const date = new Date().toISOString().split('T')[0];
 	const safe = safe_name(title);
 	mkdirSync(dir, { recursive: true });
 	const path = join(dir, `${safe}.md`);
-	writeFileSync(path, `---\ntitle: ${safe}\ndate: ${date}\ntype: ${type}\ntags: [${tags.join(', ')}]\n---\n\n${body}\n`);
+	const frontmatter = [
+		`title: ${safe}`,
+		`date: ${date}`,
+		`type: ${type}`,
+		`tags: [${tags.join(', ')}]`,
+	].join('\n')
+		+ frontmatter_links('sources', sources)
+		+ frontmatter_links('related', related);
+	const body_with_links = body
+		+ (sources.length ? wikilink_block('Sources', sources) : '')
+		+ (related.length ? wikilink_block('Related', related) : '');
+	writeFileSync(path, `---\n${frontmatter}\n---\n\n${body_with_links}\n`);
 	return path;
 }
 
 export const save_research = (question, body) =>
 	save_note(question, body, { dir: fs.research(), tags: ['research'], type: 'research' });
 
-export function enqueue_research(question, { context = '', requested_by = '', priority = 'med' } = {}) {
+export function enqueue_research(question, { context = '', requested_by = '', priority = 'med', sources = [] } = {}) {
 	const date = new Date().toISOString().split('T')[0];
 	const safe = safe_name(question);
 	mkdirSync(fs.pending(), { recursive: true });
 	const path = join(fs.pending(), `${safe}.md`);
 	if (existsSync(path)) return path;
-	const body = `---
-title: ${safe}
-date: ${date}
-type: research-pending
-status: pending
-requested_by: ${requested_by}
-priority: ${priority}
-tags: [research, pending]
----
-
-## Question
-${question}
-
-## Context
-${context}
-`;
+	const frontmatter = [
+		`title: ${safe}`,
+		`date: ${date}`,
+		`type: research-pending`,
+		`status: pending`,
+		`requested_by: ${requested_by}`,
+		`priority: ${priority}`,
+		`tags: [research, pending]`,
+	].join('\n') + frontmatter_links('sources', sources);
+	const body = `---\n${frontmatter}\n---\n\n## Question\n${question}\n\n## Context\n${context}\n`
+		+ (sources.length ? `\n## Sources\n${sources.map(s => `- [[${safe_link(s)}]]`).join('\n')}\n` : '');
 	writeFileSync(path, body);
 	return path;
 }
@@ -78,10 +94,14 @@ export function read_pending(file) {
 	const text = readFileSync(fp, 'utf8');
 	const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
 	const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
+	const s = text.match(/## Sources\s*\n([\s\S]*?)(?=\n## |$)/);
+	const fm_sources = [...text.matchAll(/^\s*-\s*"?\[\[([^\]|]+)\]\]"?/gm)].map(m => m[1].trim());
+	const body_sources = s ? [...s[1].matchAll(/\[\[([^\]|]+)\]\]/g)].map(m => m[1].trim()) : [];
 	return {
 		path: fp,
 		question: (q ? q[1] : file.replace(/\.md$/, '')).trim(),
 		context: (c ? c[1] : '').trim(),
+		sources: [...new Set([...fm_sources, ...body_sources])],
 	};
 }
 

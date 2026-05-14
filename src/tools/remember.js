@@ -12,12 +12,14 @@ export function register(server) {
 			content: z.string().describe('Key points or findings (markdown)'),
 			folder:  z.string().optional().describe('Subfolder inside .vicky/sources (e.g. "nanite", "physics")'),
 			tags:    z.array(z.string()).optional().describe('Tags'),
+			sources: z.array(z.string()).optional().describe('Upstream sources this note derives from — written as [[wikilinks]] in body + sources: frontmatter'),
+			related: z.array(z.string()).optional().describe('Sibling notes — written as [[wikilinks]] in body + related: frontmatter'),
 		},
-	}, async ({ title, content, folder, tags = [] }) => {
+	}, async ({ title, content, folder, tags = [], sources = [], related = [] }) => {
 		await ensure_init();
 		const dir = folder ? join(fs.sources(), folder) : fs.sources();
 		const merged = Array.from(new Set(['source', ...tags.filter(t => t !== 'research')]));
-		const path = save_note(title, content, { dir, tags: merged, type: 'source' });
+		const path = save_note(title, content, { dir, tags: merged, type: 'source', sources, related });
 		return { content: [{ type: 'text', text: `Saved: ${path}` }] };
 	});
 }

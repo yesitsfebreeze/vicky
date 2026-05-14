@@ -10,10 +10,11 @@ export function register(server) {
 			context: z.string().optional().describe('Why this is needed / surrounding context'),
 			requested_by: z.string().optional().describe('File, task, or topic that triggered the request'),
 			priority: z.enum(['low', 'med', 'high']).optional().describe('Default: med'),
+			sources: z.array(z.string()).optional().describe('Existing source note titles that prompted this question (linked via [[wikilinks]] in the resulting conclusion)'),
 		},
-	}, async ({ question, context, requested_by, priority }) => {
+	}, async ({ question, context, requested_by, priority, sources = [] }) => {
 		await ensure_init();
-		const path = enqueue_research(question, { context, requested_by, priority });
+		const path = enqueue_research(question, { context, requested_by, priority, sources });
 		const depth = list_pending().length;
 		return { content: [{ type: 'text', text: `Queued: ${path}\nPending queue depth: ${depth}` }] };
 	});

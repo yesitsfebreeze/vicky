@@ -21205,36 +21205,57 @@ ${h.snippet}`).join("\n\n---\n\n") || null;
 }
 var safe_name = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
 var safe_link = (t) => t.replace(/["'[\]|#^\\]/g, "").trim();
-function save_note(title, body, { dir = sources(), tags = [], type = "source" } = {}) {
+function wikilink_block(heading, items) {
+  const links = items.map((t) => `- [[${safe_link(t)}]]`).join("\n");
+  return `
+
+## ${heading}
+${links}
+`;
+}
+function frontmatter_links(key, items) {
+  if (!items?.length) return "";
+  return `
+${key}:
+${items.map((t) => `  - "[[${safe_link(t)}]]"`).join("\n")}`;
+}
+function save_note(title, body, { dir = sources(), tags = [], type = "source", sources: sources2 = [], related = [] } = {}) {
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = safe_name(title);
   mkdirSync(dir, { recursive: true });
   const path = join2(dir, `${safe}.md`);
+  const frontmatter = [
+    `title: ${safe}`,
+    `date: ${date3}`,
+    `type: ${type}`,
+    `tags: [${tags.join(", ")}]`
+  ].join("\n") + frontmatter_links("sources", sources2) + frontmatter_links("related", related);
+  const body_with_links = body + (sources2.length ? wikilink_block("Sources", sources2) : "") + (related.length ? wikilink_block("Related", related) : "");
   writeFileSync(path, `---
-title: ${safe}
-date: ${date3}
-type: ${type}
-tags: [${tags.join(", ")}]
+${frontmatter}
 ---
 
-${body}
+${body_with_links}
 `);
   return path;
 }
-function enqueue_research(question, { context = "", requested_by = "", priority = "med" } = {}) {
+function enqueue_research(question, { context = "", requested_by = "", priority = "med", sources: sources2 = [] } = {}) {
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = safe_name(question);
   mkdirSync(pending(), { recursive: true });
   const path = join2(pending(), `${safe}.md`);
   if (existsSync2(path)) return path;
+  const frontmatter = [
+    `title: ${safe}`,
+    `date: ${date3}`,
+    `type: research-pending`,
+    `status: pending`,
+    `requested_by: ${requested_by}`,
+    `priority: ${priority}`,
+    `tags: [research, pending]`
+  ].join("\n") + frontmatter_links("sources", sources2);
   const body = `---
-title: ${safe}
-date: ${date3}
-type: research-pending
-status: pending
-requested_by: ${requested_by}
-priority: ${priority}
-tags: [research, pending]
+${frontmatter}
 ---
 
 ## Question
@@ -21242,7 +21263,10 @@ ${question}
 
 ## Context
 ${context}
-`;
+` + (sources2.length ? `
+## Sources
+${sources2.map((s) => `- [[${safe_link(s)}]]`).join("\n")}
+` : "");
   writeFileSync(path, body);
   return path;
 }
@@ -21255,10 +21279,14 @@ function read_pending(file) {
   const text = readFileSync2(fp, "utf8");
   const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
   const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
+  const s = text.match(/## Sources\s*\n([\s\S]*?)(?=\n## |$)/);
+  const fm_sources = [...text.matchAll(/^\s*-\s*"?\[\[([^\]|]+)\]\]"?/gm)].map((m) => m[1].trim());
+  const body_sources = s ? [...s[1].matchAll(/\[\[([^\]|]+)\]\]/g)].map((m) => m[1].trim()) : [];
   return {
     path: fp,
     question: (q ? q[1] : file.replace(/\.md$/, "")).trim(),
-    context: (c ? c[1] : "").trim()
+    context: (c ? c[1] : "").trim(),
+    sources: [.../* @__PURE__ */ new Set([...fm_sources, ...body_sources])]
   };
 }
 function delete_pending(file) {
@@ -21592,13 +21620,15 @@ function register3(server2) {
       title: external_exports.string().describe("Topic title"),
       content: external_exports.string().describe("Key points or findings (markdown)"),
       folder: external_exports.string().optional().describe('Subfolder inside .vicky/sources (e.g. "nanite", "physics")'),
-      tags: external_exports.array(external_exports.string()).optional().describe("Tags")
+      tags: external_exports.array(external_exports.string()).optional().describe("Tags"),
+      sources: external_exports.array(external_exports.string()).optional().describe("Upstream sources this note derives from \u2014 written as [[wikilinks]] in body + sources: frontmatter"),
+      related: external_exports.array(external_exports.string()).optional().describe("Sibling notes \u2014 written as [[wikilinks]] in body + related: frontmatter")
     }
-  }, async ({ title, content, folder, tags = [] }) => {
+  }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
     const dir = folder ? join4(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
-    const path = save_note(title, content, { dir, tags: merged, type: "source" });
+    const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
   });
 }
@@ -21705,8 +21735,10 @@ function register5(server2, notify2) {
                 delete_pending(pf);
                 continue;
               }
-              const { question, context } = read_pending(pf);
+              const { question, context, sources: pending_sources } = read_pending(pf);
               const ctx = await query_graph(question, sources_graph());
+              const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map((m) => m[1].trim()) : [];
+              const linked = [.../* @__PURE__ */ new Set([...pending_sources, ...ctx_titles])];
               const body = [
                 context ? `## Requested Context
 ${context}` : "",
@@ -21715,7 +21747,12 @@ ${context}` : "",
 ${ctx.trim()}
 \`\`\`` : ""
               ].filter(Boolean).join("\n\n") || "_pending research_";
-              save_note(question, body, { dir: conclusions(), tags: ["conclusion"], type: "conclusion" });
+              save_note(question, body, {
+                dir: conclusions(),
+                tags: ["conclusion"],
+                type: "conclusion",
+                sources: linked
+              });
               delete_pending(pf);
               drained++;
             } catch (e) {
@@ -21772,11 +21809,12 @@ function register6(server2) {
       question: external_exports.string().describe("The research question to investigate later"),
       context: external_exports.string().optional().describe("Why this is needed / surrounding context"),
       requested_by: external_exports.string().optional().describe("File, task, or topic that triggered the request"),
-      priority: external_exports.enum(["low", "med", "high"]).optional().describe("Default: med")
+      priority: external_exports.enum(["low", "med", "high"]).optional().describe("Default: med"),
+      sources: external_exports.array(external_exports.string()).optional().describe("Existing source note titles that prompted this question (linked via [[wikilinks]] in the resulting conclusion)")
     }
-  }, async ({ question, context, requested_by, priority }) => {
+  }, async ({ question, context, requested_by, priority, sources: sources2 = [] }) => {
     await ensure_init();
-    const path = enqueue_research(question, { context, requested_by, priority });
+    const path = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
     const depth = list_pending().length;
     return { content: [{ type: "text", text: `Queued: ${path}
 Pending queue depth: ${depth}` }] };
