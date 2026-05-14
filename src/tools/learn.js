@@ -1,115 +1,68 @@
 import { z } from 'zod';
 import { join } from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import * as fs from '../fs.js';
-import { query_graph, list_titles_from_graph } from '../graph.js';
+import { query_graph } from '../graph.js';
 import { relink_dir } from '../link.js';
-import { save_note, list_con_files, list_pending, read_pending, delete_pending, conclusion_scaffold } from '../vault.js';
+import { save_note, list_pending, read_pending, delete_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
 import { load_workflow } from '../workflow.js';
 
 export function register(server, notify) {
 	server.registerTool('learn', {
-		description: 'Walk the KB: drain pending queue → derive sources + conclusions → discover new topics → relink. No external fetches; this is the "connect what we already have" step. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
+		description: 'Walk the KB: drain pending queue → promote to sources → relink. No external fetches and no stub conclusions — synthesis lands in conclusions/ only via `conclude` or `complete-research` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
 		inputSchema: {
-			topic: z.string().optional().describe('Specific topic — creates a conclusion stub instead of draining the queue'),
-			count: z.number().optional().describe('Max conclusions to process (default: 20)'),
-			force: z.boolean().optional().describe('Re-enrich conclusions that already have ## Research'),
+			count: z.number().optional().describe('Max pending notes to drain (default: 20)'),
 		},
-	}, async ({ topic, count, force = false }) => {
+	}, async ({ count }) => {
 		await ensure_init();
 		const n = count && count > 0 ? count : 20;
 
 		(async () => {
 			try {
-				// ⓪ Drain pending: promote to source, then create derived conclusion.
-				// Contract: every pending note ends up as exactly one source + one
-				// conclusion linked via [[wikilinks]]. Idempotent — if a conclusion
-				// already exists for a pending filename, the pending file is dropped.
-				if (!topic) {
-					const wf = load_workflow();
-					const triage = wf.default_workflow === 'triage';
-					const prio_rank = p => (p === 'high' ? 0 : p === 'med' ? 1 : 2);
-					let pending = list_pending()
-						.map(pf => ({ pf, info: (() => { try { return read_pending(pf); } catch { return {}; } })() }))
-						.map(x => ({ ...x, prio: (x.info && x.info.priority) || 'med' }));
-					if (triage) pending = pending.filter(x => x.prio === 'high');
-					pending.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
-					pending = pending.map(x => x.pf);
-					let promoted = 0;
-					for (const pf of pending) {
-						try {
-							const slug = pf.replace(/\.md$/, '');
-							const conPath = join(fs.conclusions(), pf);
-							if (existsSync(conPath)) { delete_pending(pf); continue; }
-							const { question, context, sources: pending_sources, path: pending_path } = read_pending(pf);
+				// Drain pending → source. Conclusions are intentionally NOT created
+				// here: a conclusion file only exists when there is real synthesis,
+				// produced by `conclude` or `complete-research`. Idempotent — if a
+				// source already exists for the slug, the pending file is dropped
+				// without overwrite.
+				const wf = load_workflow();
+				const triage = wf.default_workflow === 'triage';
+				const prio_rank = p => (p === 'high' ? 0 : p === 'med' ? 1 : 2);
+				let pending = list_pending()
+					.map(pf => ({ pf, info: (() => { try { return read_pending(pf); } catch { return {}; } })() }))
+					.map(x => ({ ...x, prio: (x.info && x.info.priority) || 'med' }));
+				if (triage) pending = pending.filter(x => x.prio === 'high');
+				pending.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
+				pending = pending.slice(0, n).map(x => x.pf);
+				let promoted = 0;
+				for (const pf of pending) {
+					try {
+						const slug = pf.replace(/\.md$/, '');
+						const srcPath = join(fs.sources(), pf);
+						if (existsSync(srcPath)) { delete_pending(pf); continue; }
+						const { question, context, sources: pending_sources } = read_pending(pf);
 
-							// 1. Promote pending → source. Body preserves question + context.
-							const ctx = await query_graph(question, fs.kb_graph(), 'sources');
-							const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map(m => m[1].trim()) : [];
-							const source_body = [
-								`## Question\n${question}`,
-								context ? `## Context\n${context}` : '',
-								ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
-							].filter(Boolean).join('\n\n');
-							save_note(slug, source_body, {
-								dir: fs.sources(),
-								tags: ['source'],
-								type: 'source',
-								related: pending_sources,
-							});
+						const ctx = await query_graph(question, fs.kb_graph(), 'sources');
+						const source_body = [
+							`## Question\n${question}`,
+							context ? `## Context\n${context}` : '',
+							ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
+						].filter(Boolean).join('\n\n');
+						save_note(slug, source_body, {
+							dir: fs.sources(),
+							tags: ['source'],
+							type: 'source',
+							related: pending_sources,
+						});
 
-							// 2. Derive conclusion linked to the new source + any prior sources.
-							const linked = [...new Set([slug, ...pending_sources, ...ctx_titles])];
-							save_note(slug, conclusion_scaffold(question), {
-								dir: fs.conclusions(),
-								tags: ['conclusion'],
-								type: 'conclusion',
-								sources: linked,
-							});
-
-							// 3. Drop the pending stub.
-							delete_pending(pf);
-							promoted++;
-						} catch (e) {
-							notify('error', `vicky: drain error on ${pf}: ${e.message.split('\n')[0]}`);
-						}
-					}
-					if (promoted) notify('info', `vicky: promoted ${promoted} pending → source + conclusion.`);
-				}
-
-				// ① Discover new topics → create conclusion stubs
-				if (!topic) {
-					const conTitles = list_con_files().map(f => f.replace(/\.md$/, ''));
-					const norm = s => s.toLowerCase().replace(/[^\w]/g, '');
-					const conNorms = conTitles.map(norm);
-					const newTopics = list_titles_from_graph(fs.kb_graph(), 'sources')
-						.filter(t => t.length > 10)
-						.filter(t => {
-							const n = norm(t).slice(0, 30);
-							return !conNorms.some(h => h.startsWith(n.slice(0, 15)) || n.startsWith(h.slice(0, 15)));
-						})
-						.sort(() => Math.random() - 0.5)
-						.slice(0, Math.floor(n / 2));
-					for (const t of newTopics) {
-						const ctx = await query_graph(t, fs.kb_graph(), 'sources');
-						const body = ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '_No graph context yet._';
-						save_note(t, body, { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
-					}
-					if (newTopics.length) notify('info', `vicky: created ${newTopics.length} new conclusion stubs.`);
-				}
-
-				// ② Handle explicit topic-based research
-				if (topic) {
-					const safe = topic.replace(/[^\w\s-]/g, '').trim().slice(0, 60);
-					const conPath = join(fs.conclusions(), `${safe}.md`);
-					if (!existsSync(conPath)) {
-						save_note(safe, conclusion_scaffold(topic), { dir: fs.conclusions(), tags: ['conclusion'], type: 'conclusion' });
-						notify('info', `vicky: created conclusion stub for "${safe}"`);
+						delete_pending(pf);
+						promoted++;
+					} catch (e) {
+						notify('error', `vicky: drain error on ${pf}: ${e.message.split('\n')[0]}`);
 					}
 				}
+				if (promoted) notify('info', `vicky: promoted ${promoted} pending → source.`);
 
-				// ③ Relink (writes related: frontmatter from the unified graph)
 				notify('info', 'vicky: relinking...');
 				const graph = fs.kb_graph();
 				const [src, con] = await Promise.all([
@@ -122,6 +75,6 @@ export function register(server, notify) {
 			}
 		})();
 
-		return { content: [{ type: 'text', text: `Learning ${topic ? `"${topic}"` : `up to ${n} conclusions`} in background.` }] };
+		return { content: [{ type: 'text', text: `Learning up to ${n} pending notes in background.` }] };
 	});
 }

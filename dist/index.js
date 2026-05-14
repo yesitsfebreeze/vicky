@@ -21105,7 +21105,7 @@ var StdioServerTransport = class {
 };
 
 // src/index.js
-import { readFileSync as readFileSync8 } from "fs";
+import { readFileSync as readFileSync7 } from "fs";
 
 // src/fs.js
 import { dirname, join, basename } from "path";
@@ -21214,17 +21214,6 @@ function filter_nodes_by_prefix(raw, prefix) {
     return m[1].startsWith(prefix);
   }).join("\n");
 }
-function list_titles_from_graph(graphPath = kb_graph(), prefix = null) {
-  if (!existsSync(graphPath)) return [];
-  try {
-    const { nodes } = JSON.parse(readFileSync(graphPath, "utf8"));
-    return [...new Set(
-      nodes.filter((n) => n.source_location === "L1" && n.source_file?.endsWith(".md")).filter((n) => !prefix || n.source_file.replace(/\\/g, "/").includes(`/${prefix}/`) || n.source_file.startsWith(`${prefix}/`)).map((n) => n.source_file.split(/[/\\]/).pop().replace(/\.md$/, ""))
-    )];
-  } catch (_) {
-    return [];
-  }
-}
 
 // src/vault.js
 import { existsSync as existsSync2, readFileSync as readFileSync2, writeFileSync, readdirSync, mkdirSync, unlinkSync } from "fs";
@@ -21292,20 +21281,6 @@ ${body_with_links}
 `);
   return path;
 }
-function conclusion_scaffold(title) {
-  return [
-    `# ${title}`,
-    "",
-    "## Conclusion",
-    "_Stub \u2014 synthesise the takeaway from the linked sources below._",
-    "",
-    "## Why",
-    "_What evidence in the sources backs this conclusion?_",
-    "",
-    "## Caveats / Open questions",
-    "_What the sources do not cover; what is unresolved._"
-  ].join("\n");
-}
 function enqueue_research(question, { context = "", requested_by = "", priority = "med", sources: sources2 = [] } = {}) {
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = safe_name(question);
@@ -21359,10 +21334,6 @@ function read_pending(file) {
 function delete_pending(file) {
   const fp = join3(pending(), file);
   if (existsSync2(fp)) unlinkSync(fp);
-}
-function list_con_files() {
-  if (!existsSync2(conclusions())) return [];
-  return readdirSync(conclusions()).filter((f) => f.endsWith(".md") && !f.startsWith("README") && !f.startsWith("_"));
 }
 function patch_frontmatter_related(filePath, links) {
   let content = readFileSync2(filePath, "utf8");
@@ -21697,11 +21668,9 @@ No KB match. Use /vic:web-search "question" to research manually.`
 
 // src/tools/remember.js
 import { join as join5 } from "path";
-import { existsSync as existsSync5 } from "fs";
-var safe_name2 = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
 function register3(server2) {
   server2.registerTool("remember", {
-    description: "Save key points or findings into the source vault. Also seeds a paired conclusion stub in .vicky/conclusions/ if one does not already exist \u2014 sources spawn conclusions by design.",
+    description: "Save key points or findings into the source vault. Conclusions are not auto-spawned \u2014 call `conclude` once you have a synthesised takeaway.",
     inputSchema: {
       title: external_exports.string().describe("Topic title"),
       content: external_exports.string().describe("Key points or findings (markdown)"),
@@ -21718,21 +21687,7 @@ function register3(server2) {
     const dir = folder ? join5(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related });
-    const slug = safe_name2(title);
-    const con_path = join5(conclusions(), `${slug}.md`);
-    let con_msg = "";
-    if (!existsSync5(con_path)) {
-      save_note(slug, conclusion_scaffold(title), {
-        dir: conclusions(),
-        tags: ["conclusion"],
-        type: "conclusion",
-        sources: [slug, ...sources2],
-        related
-      });
-      con_msg = `
-Conclusion stub seeded: ${con_path}`;
-    }
-    return { content: [{ type: "text", text: `Saved: ${path}${con_msg}` }] };
+    return { content: [{ type: "text", text: `Saved: ${path}` }] };
   });
 }
 
@@ -21759,11 +21714,11 @@ function register4(server2) {
 }
 
 // src/link.js
-import { existsSync as existsSync6, readFileSync as readFileSync4, readdirSync as readdirSync3 } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync4, readdirSync as readdirSync3 } from "fs";
 import { join as join7 } from "path";
 var BATCH = 10;
 function list_md_files(dir) {
-  if (!existsSync6(dir)) return [];
+  if (!existsSync5(dir)) return [];
   const files = [];
   function walk(d) {
     for (const e of readdirSync3(d, { withFileTypes: true })) {
@@ -21830,103 +21785,65 @@ function register5(server2, notify2) {
 
 // src/tools/learn.js
 import { join as join8 } from "path";
-import { existsSync as existsSync7, readFileSync as readFileSync5 } from "fs";
+import { existsSync as existsSync6 } from "fs";
 function register6(server2, notify2) {
   server2.registerTool("learn", {
-    description: 'Walk the KB: drain pending queue \u2192 derive sources + conclusions \u2192 discover new topics \u2192 relink. No external fetches; this is the "connect what we already have" step. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
+    description: "Walk the KB: drain pending queue \u2192 promote to sources \u2192 relink. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` or `complete-research` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
     inputSchema: {
-      topic: external_exports.string().optional().describe("Specific topic \u2014 creates a conclusion stub instead of draining the queue"),
-      count: external_exports.number().optional().describe("Max conclusions to process (default: 20)"),
-      force: external_exports.boolean().optional().describe("Re-enrich conclusions that already have ## Research")
+      count: external_exports.number().optional().describe("Max pending notes to drain (default: 20)")
     }
-  }, async ({ topic, count, force = false }) => {
+  }, async ({ count }) => {
     await ensure_init();
     const n = count && count > 0 ? count : 20;
     (async () => {
       try {
-        if (!topic) {
-          const wf = load_workflow();
-          const triage = wf.default_workflow === "triage";
-          const prio_rank = (p) => p === "high" ? 0 : p === "med" ? 1 : 2;
-          let pending2 = list_pending().map((pf) => ({ pf, info: (() => {
-            try {
-              return read_pending(pf);
-            } catch {
-              return {};
+        const wf = load_workflow();
+        const triage = wf.default_workflow === "triage";
+        const prio_rank = (p) => p === "high" ? 0 : p === "med" ? 1 : 2;
+        let pending2 = list_pending().map((pf) => ({ pf, info: (() => {
+          try {
+            return read_pending(pf);
+          } catch {
+            return {};
+          }
+        })() })).map((x) => ({ ...x, prio: x.info && x.info.priority || "med" }));
+        if (triage) pending2 = pending2.filter((x) => x.prio === "high");
+        pending2.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
+        pending2 = pending2.slice(0, n).map((x) => x.pf);
+        let promoted = 0;
+        for (const pf of pending2) {
+          try {
+            const slug = pf.replace(/\.md$/, "");
+            const srcPath = join8(sources(), pf);
+            if (existsSync6(srcPath)) {
+              delete_pending(pf);
+              continue;
             }
-          })() })).map((x) => ({ ...x, prio: x.info && x.info.priority || "med" }));
-          if (triage) pending2 = pending2.filter((x) => x.prio === "high");
-          pending2.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
-          pending2 = pending2.map((x) => x.pf);
-          let promoted = 0;
-          for (const pf of pending2) {
-            try {
-              const slug = pf.replace(/\.md$/, "");
-              const conPath = join8(conclusions(), pf);
-              if (existsSync7(conPath)) {
-                delete_pending(pf);
-                continue;
-              }
-              const { question, context, sources: pending_sources, path: pending_path } = read_pending(pf);
-              const ctx = await query_graph(question, kb_graph(), "sources");
-              const ctx_titles = ctx ? [...ctx.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)].map((m) => m[1].trim()) : [];
-              const source_body = [
-                `## Question
+            const { question, context, sources: pending_sources } = read_pending(pf);
+            const ctx = await query_graph(question, kb_graph(), "sources");
+            const source_body = [
+              `## Question
 ${question}`,
-                context ? `## Context
+              context ? `## Context
 ${context}` : "",
-                ctx ? `## Graph Context
+              ctx ? `## Graph Context
 \`\`\`
 ${ctx.trim()}
 \`\`\`` : ""
-              ].filter(Boolean).join("\n\n");
-              save_note(slug, source_body, {
-                dir: sources(),
-                tags: ["source"],
-                type: "source",
-                related: pending_sources
-              });
-              const linked = [.../* @__PURE__ */ new Set([slug, ...pending_sources, ...ctx_titles])];
-              save_note(slug, conclusion_scaffold(question), {
-                dir: conclusions(),
-                tags: ["conclusion"],
-                type: "conclusion",
-                sources: linked
-              });
-              delete_pending(pf);
-              promoted++;
-            } catch (e) {
-              notify2("error", `vicky: drain error on ${pf}: ${e.message.split("\n")[0]}`);
-            }
-          }
-          if (promoted) notify2("info", `vicky: promoted ${promoted} pending \u2192 source + conclusion.`);
-        }
-        if (!topic) {
-          const conTitles = list_con_files().map((f) => f.replace(/\.md$/, ""));
-          const norm = (s) => s.toLowerCase().replace(/[^\w]/g, "");
-          const conNorms = conTitles.map(norm);
-          const newTopics = list_titles_from_graph(kb_graph(), "sources").filter((t) => t.length > 10).filter((t) => {
-            const n2 = norm(t).slice(0, 30);
-            return !conNorms.some((h) => h.startsWith(n2.slice(0, 15)) || n2.startsWith(h.slice(0, 15)));
-          }).sort(() => Math.random() - 0.5).slice(0, Math.floor(n / 2));
-          for (const t of newTopics) {
-            const ctx = await query_graph(t, kb_graph(), "sources");
-            const body = ctx ? `## Graph Context
-\`\`\`
-${ctx.trim()}
-\`\`\`` : "_No graph context yet._";
-            save_note(t, body, { dir: conclusions(), tags: ["conclusion"], type: "conclusion" });
-          }
-          if (newTopics.length) notify2("info", `vicky: created ${newTopics.length} new conclusion stubs.`);
-        }
-        if (topic) {
-          const safe = topic.replace(/[^\w\s-]/g, "").trim().slice(0, 60);
-          const conPath = join8(conclusions(), `${safe}.md`);
-          if (!existsSync7(conPath)) {
-            save_note(safe, conclusion_scaffold(topic), { dir: conclusions(), tags: ["conclusion"], type: "conclusion" });
-            notify2("info", `vicky: created conclusion stub for "${safe}"`);
+            ].filter(Boolean).join("\n\n");
+            save_note(slug, source_body, {
+              dir: sources(),
+              tags: ["source"],
+              type: "source",
+              related: pending_sources
+            });
+            delete_pending(pf);
+            promoted++;
+          } catch (e) {
+            notify2("error", `vicky: drain error on ${pf}: ${e.message.split("\n")[0]}`);
           }
         }
+        if (promoted) notify2("info", `vicky: promoted ${promoted} pending \u2192 source.`);
         notify2("info", "vicky: relinking...");
         const graph = kb_graph();
         const [src, con] = await Promise.all([
@@ -21938,7 +21855,7 @@ ${ctx.trim()}
         notify2("error", `vicky learn failed: ${e.message}`);
       }
     })();
-    return { content: [{ type: "text", text: `Learning ${topic ? `"${topic}"` : `up to ${n} conclusions`} in background.` }] };
+    return { content: [{ type: "text", text: `Learning up to ${n} pending notes in background.` }] };
   });
 }
 
@@ -21993,7 +21910,7 @@ This saves the research to Vicky's knowledge base for future queries.`;
 }
 
 // src/tools/promote.js
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, existsSync as existsSync8 } from "fs";
+import { readFileSync as readFileSync5, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, existsSync as existsSync7 } from "fs";
 import { join as join9 } from "path";
 function register9(server2) {
   server2.registerTool("promote", {
@@ -22009,13 +21926,13 @@ function register9(server2) {
     const toDir = type === "research" ? conclusions() : research();
     const fromPath = join9(fromDir, filename);
     const toPath = join9(toDir, filename);
-    if (!existsSync8(fromPath)) {
+    if (!existsSync7(fromPath)) {
       return { content: [{
         type: "text",
         text: `Error: File not found at ${fromPath}`
       }] };
     }
-    let content = readFileSync6(fromPath, "utf8");
+    let content = readFileSync5(fromPath, "utf8");
     const oldType = type === "research" ? "research" : "conclusion";
     const newType = type === "research" ? "conclusion" : "research";
     content = content.replace(/^type: research$/m, `type: ${newType}`);
@@ -22035,7 +21952,7 @@ function register9(server2) {
 }
 
 // src/tools/complete-research.js
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, existsSync as existsSync9, readdirSync as readdirSync4 } from "fs";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, existsSync as existsSync8, readdirSync as readdirSync4 } from "fs";
 import { join as join10 } from "path";
 function register10(server2) {
   server2.registerTool("complete-research", {
@@ -22050,7 +21967,7 @@ function register10(server2) {
     let filesToProcess = [];
     if (file) {
       const filename = file.endsWith(".md") ? file : `${file}.md`;
-      if (existsSync9(join10(research(), filename))) {
+      if (existsSync8(join10(research(), filename))) {
         filesToProcess = [filename];
       } else {
         return { content: [{
@@ -22059,14 +21976,14 @@ function register10(server2) {
         }] };
       }
     } else {
-      if (existsSync9(research())) {
+      if (existsSync8(research())) {
         filesToProcess = readdirSync4(research()).filter((f) => f.endsWith(".md"));
       }
     }
     for (const filename of filesToProcess) {
       const fromPath = join10(research(), filename);
       const toPath = join10(conclusions(), filename);
-      const content = readFileSync7(fromPath, "utf8");
+      const content = readFileSync6(fromPath, "utf8");
       const researchMatch = content.match(/^## Research\s*\n([\s\S]*?)(?=^##|$)/m);
       if (!researchMatch) {
         results.push({ file: filename, status: "skip", reason: "No ## Research section found" });
@@ -22114,6 +22031,7 @@ var QUERIES = {
   recent: `TABLE file.folder AS Folder, type, date, tags FROM "." WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
   hubs: `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM "conclusions" OR "sources" WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
   pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM "pending" WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
+  awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM "sources" WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
   orphans: `LIST FROM "conclusions" OR "sources" WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
   stale: `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM "conclusions" WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
   tags: `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
@@ -22195,6 +22113,7 @@ function render(data) {
     section_table("Recent additions (last 14 days)", data.recent),
     section_table("Most important nodes (hubs)", data.hubs),
     section_table("Pending queue", data.pending),
+    section_table("Sources awaiting synthesis (no inbound conclusion)", data.awaiting_synthesis),
     section_list("Orphans (no in/out links)", data.orphans),
     section_table("Stale conclusions (>60d, <2 inlinks)", data.stale),
     section_table("Tag cloud", data.tags)
@@ -22343,7 +22262,7 @@ var config2 = {
 };
 try {
   const configPath = "./vicky.config.json";
-  const configText = readFileSync8(configPath, "utf8");
+  const configText = readFileSync7(configPath, "utf8");
   config2 = { ...config2, ...JSON.parse(configText) };
 } catch (_) {
 }

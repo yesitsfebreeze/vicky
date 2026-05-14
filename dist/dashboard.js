@@ -21,6 +21,7 @@ var QUERIES = {
   recent: `TABLE file.folder AS Folder, type, date, tags FROM "." WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
   hubs: `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM "conclusions" OR "sources" WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
   pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM "pending" WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
+  awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM "sources" WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
   orphans: `LIST FROM "conclusions" OR "sources" WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
   stale: `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM "conclusions" WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
   tags: `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
@@ -102,6 +103,7 @@ function render(data) {
     section_table("Recent additions (last 14 days)", data.recent),
     section_table("Most important nodes (hubs)", data.hubs),
     section_table("Pending queue", data.pending),
+    section_table("Sources awaiting synthesis (no inbound conclusion)", data.awaiting_synthesis),
     section_list("Orphans (no in/out links)", data.orphans),
     section_table("Stale conclusions (>60d, <2 inlinks)", data.stale),
     section_table("Tag cloud", data.tags)

@@ -1,5 +1,5 @@
 ---
-description: Get new data into the KB. Web-searches the topic, attaches findings to a pending stub, then auto-calls the `learn` MCP tool so the new material is promoted, derived, and relinked in one pass. Use /vicky:research "<topic>" when the KB has a gap on a specific subject. Two-step pipeline (fetch → learn) runs inside this skill — caller never has to follow up with /vicky:learn manually.
+description: Get new data into the KB. Web-searches the topic, attaches findings to a pending stub, then auto-calls the `learn` MCP tool so the new material is promoted to a source and relinked. Conclusions are written separately via `conclude` once you have a real takeaway. Use /vicky:research "<topic>" when the KB has a gap on a specific subject.
 ---
 
 # Vicky Research
@@ -27,11 +27,15 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction"`
    `enqueue question="<follow-up>" requested_by=research
    sources=[<topic-slug>]`. Tag jargon → "what is X?" follow-ups,
    conflicting claims → "reconcile X vs Y".
-5. **Absorb** — call the `learn` MCP tool (no `topic` arg). It drains
-   the pending stub into `.vicky/sources/<slug>.md`, derives
-   `.vicky/conclusions/<slug>.md` with `sources: [[<slug>]]`, and
-   relinks. Mandatory — research without learn leaves orphan pending
-   stubs.
+5. **Absorb** — call the `learn` MCP tool. It drains the pending stub
+   into `.vicky/sources/<slug>.md` and relinks. No conclusion is created
+   here — that step is for the caller, once a real synthesis exists.
+   Mandatory — research without learn leaves orphan pending stubs.
+6. **Synthesise (optional, recommended)** — read the new source, then
+   call `conclude title="<slug>" sources=[<slug>, ...]` with the
+   takeaway. Skip only if the source data is too thin to draw a
+   conclusion yet; the dashboard's "Sources awaiting synthesis" section
+   will surface it later.
 
 ## When to call
 
@@ -55,7 +59,7 @@ Do not call for questions the KB already answers (use `query` or
 
 - `.vicky/pending/*.md`       topic stub + follow-ups (created, drained by step 5)
 - `.vicky/sources/*.md`       added by step 5
-- `.vicky/conclusions/*.md`   added by step 5
+- `.vicky/conclusions/*.md`   added by step 6 if you call `conclude`
 - `.vicky/graphs/*.json`      rebuilt by step 5
 
 ## Failure modes

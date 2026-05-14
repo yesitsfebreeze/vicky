@@ -16,8 +16,8 @@ A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown not
 |-------|------|
 | `setup` | Auto-fires on SessionStart. Re-invoke after `/compact` to restore context. |
 | `index [<path>]` | Docs → KB sync. Mirrors changed `*.md` / `*.mdx` / `*.rst` / `*.txt` outside `.vicky/` into `.vicky/sources/docs/`. Never indexes source code. |
-| `learn` | Drain the pending queue into conclusion stubs and refresh link graphs. Batch op. |
-| `research "<topic>"` | Topic-focused web research → sources + follow-up questions. |
+| `learn` | Drain the pending queue into sources and refresh link graphs. No stub conclusions — synthesis is a separate step via `conclude`. |
+| `research "<topic>"` | Topic-focused web research → sources + follow-up questions. Calls `learn` at the end. |
 | `experiment` | Autonomous code-optimisation loop. Reads `experiment.md`, runs in worktrees, learns time estimates. |
 
 ## MCP tools
@@ -26,12 +26,12 @@ A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown not
 |------|----------|
 | `research-gap "<question>"` | Default for any knowledge question. Returns KB context if found, auto-enqueues research when there's a gap. Honors `WORKFLOW.md → auto_enqueue`. |
 | `query "<question>"`        | Direct KB lookup, no auto-enqueue. Focus-biased per WORKFLOW.md. |
-| `research`                  | Drain the pending queue into conclusion stubs. `triage` workflow filters to `priority: high`. |
+| `learn`                     | Drain the pending queue into sources. `triage` workflow filters to `priority: high`. |
 | `remember title content`    | Save findings to `.vicky/sources/` with frontmatter. Cannot write to `conclusions/`. |
-| `conclude title content sources` | Save a derived conclusion to `.vicky/conclusions/`. `sources` arg becomes `[[wikilinks]]` in frontmatter + body. Use after a research pass. |
+| `conclude title content sources` | Save a derived conclusion to `.vicky/conclusions/`. `sources` arg becomes `[[wikilinks]]` in frontmatter + body. Use once you have a real synthesis. |
 | `enqueue "<question>"`      | Manually queue a research question. |
 | `relink`                    | Rebuild link graphs + `related:` frontmatter. |
-| `dashboard`                 | Vault overview (counts, hubs, pending, orphans, stale, tags) via Obsidian + Dataview. Call before research sessions and when the user asks about KB state. |
+| `dashboard`                 | Vault overview (counts, hubs, pending, sources awaiting synthesis, orphans, stale, tags) via Obsidian + Dataview. Call before research sessions and when the user asks about KB state. |
 | `dql "<query>"`             | Run arbitrary DQL. `query="help"` returns syntax reference + examples. Use for ad-hoc questions the fixed dashboard doesn't answer. |
 | `web-search`                | Drive external research when KB has no answer. |
 
@@ -43,7 +43,7 @@ Frontmatter keys that affect runtime:
 - `active_focus: [tag, topic]` — biases query results, filters dashboard `By focus` section
 - `priority_tags: [perf, blocker]` — emphasised in views
 - `auto_enqueue: true|false` — when false, gaps are reported without being queued
-- `default_workflow: default | deep-dive | triage` — `triage` makes `research` only drain `priority: high` pending notes
+- `default_workflow: default | deep-dive | triage` — `triage` makes `learn` only drain `priority: high` pending notes
 - `min_sources_per_conclusion: N` — quality gate hint
 
 Sections:
@@ -70,16 +70,17 @@ If `dashboard` errors with "Obsidian is not running with the vault \"...\" open"
 - "What's in the vault?" / activity questions → `dashboard`
 - Ad-hoc structural queries (find all sources with tag X, recently-touched conclusions, etc.) → `dql`
 - New finding worth keeping → `remember`
+- After absorbing new sources → `conclude` for any source ready to synthesise
 - After a research burst → `relink` to refresh the graph
 
-Do not call `research` reactively for every question — it drains the queue and is expensive. Run it when the user asks, when the queue has accumulated, or per `WORKFLOW.md → default_workflow`.
+Do not call `learn` reactively for every question — it drains the queue and is expensive. Run it when the user asks, when the queue has accumulated, or per `WORKFLOW.md → default_workflow`.
 
 ## Vault layout (created by init)
 
 ```
 .vicky/
 ├── sources/        external research, papers, web findings
-├── conclusions/    synthesised knowledge
+├── conclusions/    synthesised knowledge (only real synthesis — no stubs)
 ├── pending/        queued research questions
 ├── .graphify/      semantic graph state (graph.json — read by query_graph)
 ├── graphs/         Dataview-queryable wiki of the graph (vicky.md + clusters)

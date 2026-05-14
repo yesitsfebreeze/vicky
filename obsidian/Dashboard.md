@@ -49,6 +49,18 @@ WHERE status = "pending"
 SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC
 ```
 
+## Sources awaiting synthesis
+
+Sources with no inbound link from a conclusion — candidates for the next `conclude` pass.
+
+```dataview
+TABLE WITHOUT ID file.link AS "Source", length(file.inlinks) AS "Inlinks", date
+FROM "sources"
+WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0
+SORT length(file.inlinks) DESC, date DESC
+LIMIT 25
+```
+
 ## Orphans (isolated nodes)
 
 No inbound, no outbound links. Candidates for `relink`.
