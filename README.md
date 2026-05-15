@@ -34,17 +34,17 @@ Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky
 
 ```bash
 git clone https://github.com/yesitsfebreeze/vicky ~/vicky
-cd ~/vicky && npm install
+cd ~/vicky/src && npm install && npm run build
 ```
 
-Register the MCP server pointing at `~/vicky/src/index.js`. Example `.mcp.json`:
+Register the MCP server pointing at `~/vicky/dist/index.js`. Example `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "vicky": {
       "command": "node",
-      "args": ["~/vicky/src/index.js"]
+      "args": ["~/vicky/dist/index.js"]
     }
   }
 }
@@ -55,7 +55,7 @@ Restart the agent. First call triggers `init()`. Open `vicky/` in Obsidian and e
 ## Update
 
 ```bash
-cd ~/vicky && git pull && npm install
+cd ~/vicky && git pull && cd src && npm install && npm run build
 ```
 
 Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` never overwrites existing files.
@@ -77,9 +77,17 @@ Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` neve
 ## Layout
 
 ```
-~/vicky/                     # the skill (clone target)
-├── src/                     # MCP server + tools
+~/vicky/                     # plugin root (clone target)
+├── .claude-plugin/          # plugin manifest
+├── hooks/                   # SessionStart init hook
+├── dist/                    # bundled MCP server (CI-built, committed)
 ├── obsidian/                # template scaffolded into vicky/ on init
+├── skills/                  # Claude Code skills
+├── src/                     # source + build (node_modules lives here)
+│   ├── package.json
+│   ├── build.js
+│   ├── index.js, init.js, dashboard.js, ...
+│   └── tools/
 └── README.md                # this file
 
 <your project>/vicky/       # created by init() in each project

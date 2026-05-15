@@ -121,22 +121,3 @@ export function build_dashboard() {
 	return { data, markdown: render(data) };
 }
 
-const entry = process.argv[1] || '';
-if (entry.endsWith('dashboard.js')) {
-	const args = process.argv.slice(2);
-	try {
-		const { data, markdown } = build_dashboard();
-		if (args.includes('--json')) {
-			console.log(JSON.stringify(data, null, 2));
-		} else if (args.includes('--write')) {
-			mkdirSync(fs.root(), { recursive: true });
-			writeFileSync(fs.report_md(), markdown);
-			console.log(fs.report_md());
-		} else {
-			console.log(markdown);
-		}
-	} catch (e) {
-		console.error(`dashboard: ${e.message}`);
-		process.exit(1);
-	}
-}

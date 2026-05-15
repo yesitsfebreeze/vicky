@@ -1,4 +1,9 @@
-node_modules/
-vicky/
-*.logvicky.conf
-vicky/
+src/node_modules/
+*.log
+.vicky/
+.claude/
+.git-fs/
+.mcp.json
+.agent
+/vicky/
+/.obsidian/

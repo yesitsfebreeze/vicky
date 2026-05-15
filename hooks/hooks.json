@@ -5,7 +5,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/init.js\"",
+						"command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/vicky.js\" init",
 						"timeout": 10
 					}
 				]

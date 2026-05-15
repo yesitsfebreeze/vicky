@@ -69,10 +69,4 @@ export async function ensure_init() {
 	return init();
 }
 
-const entry = process.argv[1] || '';
-if (entry.endsWith('init.js')) {
-	const result = await init();
-	console.log(JSON.stringify(result, null, 2));
-}
-
 export default init;

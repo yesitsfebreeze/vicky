@@ -1,17 +1,16 @@
 {
   "name": "vicky",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "Vicky KB: demand-driven knowledge base. Auto-enrich answers when gaps detected.",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "../dist/vicky.js",
   "bin": {
-    "vicky": "dist/index.js",
-    "vicky-dashboard": "dist/dashboard.js"
+    "vicky": "../dist/vicky.js"
   },
   "scripts": {
-    "build": "node build.js",
-    "start": "node dist/index.js",
-    "dashboard": "node dist/dashboard.js"
+    "build": "node js/build.js",
+    "start": "node ../dist/vicky.js",
+    "dashboard": "node ../dist/vicky.js dashboard"
   },
   "keywords": [
     "knowledge-base",
@@ -28,7 +27,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "graphifyy": "^0.7.5",
     "zod": "^3.0.0"
   },
   "engines": {
