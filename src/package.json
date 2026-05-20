@@ -1,6 +1,6 @@
 {
   "name": "vicky",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Vicky KB: demand-driven knowledge base. Auto-enrich answers when gaps detected.",
   "type": "module",
   "main": "../dist/vicky.js",

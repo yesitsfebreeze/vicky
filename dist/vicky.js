@@ -72,7 +72,7 @@ var init_fs = __esm({
     workflow_md = () => join(root(), "WORKFLOW.md");
     dashboard_md = () => join(root(), "Dashboard.md");
     report_md = () => join(root(), "Dashboard.report.md");
-    template_dir = () => join(SKILL_DIR, "..", "obsidian", ".vicky");
+    template_dir = () => join(SKILL_DIR, "..", "scaffold");
     vault_name = () => process.env.OBSIDIAN_VAULT || basename(root());
     obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === "win32" ? "obsidian.com" : "obsidian");
   }
@@ -115,7 +115,7 @@ async function init() {
   for (const directory of [sources(), conclusions(), pending(), graphs()]) {
     if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
   }
-  copy_tree(template_dir(), root());
+  copy_tree(template_dir(), ".");
   const ignore = graphifyignore();
   if (!existsSync(ignore)) writeFileSync(ignore, GRAPHIFYIGNORE);
   initialized = true;

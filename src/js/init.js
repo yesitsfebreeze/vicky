@@ -57,7 +57,7 @@ export async function init() {
 	for (const directory of [fs.sources(), fs.conclusions(), fs.pending(), fs.graphs()]) {
 		if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
 	}
-	copy_tree(fs.template_dir(), fs.root());
+	copy_tree(fs.template_dir(), '.');
 	const ignore = fs.graphifyignore();
 	if (!existsSync(ignore)) writeFileSync(ignore, GRAPHIFYIGNORE);
 	initialized = true;

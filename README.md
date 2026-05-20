@@ -81,7 +81,7 @@ Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` neve
 ├── .claude-plugin/          # plugin manifest
 ├── hooks/                   # SessionStart init hook
 ├── dist/                    # bundled MCP server (CI-built, committed)
-├── obsidian/                # template scaffolded into vicky/ on init
+├── scaffold/                # template tree mirroring project root (copied to . on init)
 ├── skills/                  # Claude Code skills
 ├── src/                     # source + build (node_modules lives here)
 │   ├── package.json
