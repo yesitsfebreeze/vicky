@@ -11,7 +11,7 @@ Open research questions. Run `/vicky:learn` to drain, or `/vicky:research "<topi
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Question", priority, requested_by, date
-FROM "pending"
+FROM "vicky/pending"
 WHERE status = "pending"
 SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC
 ```
@@ -20,7 +20,7 @@ SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC
 
 ```dataview
 LIST
-FROM "pending"
+FROM "vicky/pending"
 WHERE status = "pending" AND priority = "high"
 SORT date ASC
 ```
@@ -29,7 +29,7 @@ SORT date ASC
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Question", priority, date
-FROM "pending"
+FROM "vicky/pending"
 WHERE status = "pending" AND date AND date(date) < date(today) - dur(7 days)
 SORT date ASC
 ```
@@ -38,7 +38,7 @@ SORT date ASC
 
 ```dataview
 TABLE WITHOUT ID rows.file.link AS "Questions", length(rows) AS "Count"
-FROM "pending"
+FROM "vicky/pending"
 WHERE status = "pending"
 GROUP BY requested_by
 SORT length(rows) DESC

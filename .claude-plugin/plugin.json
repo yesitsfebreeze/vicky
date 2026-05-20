@@ -1,7 +1,7 @@
 {
 	"$schema": "https://code.claude.com/schemas/plugin.json",
 	"name": "vicky",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "Demand-driven knowledge base. Auto-enriches answers when gaps detected. Drives Obsidian + Dataview for live KB views.",
 	"author": {
 		"name": "sayhe",

@@ -12,7 +12,7 @@ Live views over the KB. Requires the Dataview plugin (DQL + JS).
 
 ```dataview
 TABLE WITHOUT ID type AS "Type", length(rows) AS "Count"
-FROM ".vicky"
+FROM "vicky"
 WHERE type
 GROUP BY type
 SORT length(rows) DESC
@@ -22,7 +22,7 @@ SORT length(rows) DESC
 
 ```dataview
 TABLE file.folder AS "Folder", type, date, tags
-FROM ".vicky"
+FROM "vicky"
 WHERE date AND date(date) >= date(today) - dur(14 days)
 SORT date DESC
 LIMIT 25
@@ -34,7 +34,7 @@ Most-linked = most referenced. Inbound link count is a proxy for centrality.
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Node", length(file.inlinks) AS "Inlinks", length(file.outlinks) AS "Outlinks", type
-FROM ".vicky/conclusions" OR ".vicky/sources"
+FROM "vicky/conclusions" OR "vicky/sources"
 WHERE length(file.inlinks) > 0
 SORT length(file.inlinks) DESC
 LIMIT 20
@@ -44,7 +44,7 @@ LIMIT 20
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Question", priority, requested_by, date
-FROM ".vicky/pending"
+FROM "vicky/pending"
 WHERE status = "pending"
 SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC
 ```
@@ -55,8 +55,8 @@ Sources with no inbound link from a conclusion — candidates for the next `conc
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Source", length(file.inlinks) AS "Inlinks", date
-FROM ".vicky/sources"
-WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, ".vicky/conclusions"))) = 0
+FROM "vicky/sources"
+WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "vicky/conclusions"))) = 0
 SORT length(file.inlinks) DESC, date DESC
 LIMIT 25
 ```
@@ -67,7 +67,7 @@ No inbound, no outbound links. Candidates for `relink`.
 
 ```dataview
 LIST
-FROM ".vicky/conclusions" OR ".vicky/sources"
+FROM "vicky/conclusions" OR "vicky/sources"
 WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0
 LIMIT 25
 ```
@@ -78,7 +78,7 @@ Old conclusions with few inbound links — verify or merge.
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Conclusion", length(file.inlinks) AS "Inlinks", date
-FROM ".vicky/conclusions"
+FROM "vicky/conclusions"
 WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2
 SORT date ASC
 LIMIT 20
@@ -87,13 +87,13 @@ LIMIT 20
 ## By focus (from WORKFLOW.md)
 
 ```dataviewjs
-const wf = dv.page(".vicky/WORKFLOW");
+const wf = dv.page("vicky/WORKFLOW");
 const focus = wf?.active_focus ?? [];
 if (!focus.length) {
   dv.paragraph("_No `active_focus` set in WORKFLOW.md — showing nothing._");
 } else {
   dv.header(4, "Focus: " + focus.join(", "));
-  const pages = dv.pages('".vicky/conclusions" or ".vicky/sources"')
+  const pages = dv.pages('"vicky/conclusions" or "vicky/sources"')
     .where(p => (p.tags ?? []).some(t => focus.includes(t))
              || focus.some(f => (p.file.path ?? "").toLowerCase().includes(f.toLowerCase())));
   dv.table(["Node", "Type", "Tags", "Date"],
@@ -108,7 +108,7 @@ if (!focus.length) {
 
 ```dataview
 TABLE WITHOUT ID rows.file.link AS "Notes", length(rows) AS "Count"
-FROM ".vicky"
+FROM "vicky"
 FLATTEN tags AS tag
 WHERE tag
 GROUP BY tag
@@ -120,7 +120,7 @@ LIMIT 30
 
 ```dataviewjs
 const since = dv.date("today").minus(dv.duration("30 days"));
-const pages = dv.pages('".vicky/sources" or ".vicky/conclusions" or ".vicky/pending"')
+const pages = dv.pages('"vicky/sources" or "vicky/conclusions" or "vicky/pending"')
   .where(p => p.date && dv.date(p.date) >= since);
 const buckets = {};
 for (const p of pages) {
