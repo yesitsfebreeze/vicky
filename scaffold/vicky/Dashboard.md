@@ -56,7 +56,7 @@ Sources with no inbound link from a conclusion — candidates for the next `conc
 ```dataview
 TABLE WITHOUT ID file.link AS "Source", length(file.inlinks) AS "Inlinks", date
 FROM "vicky/sources"
-WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "vicky/conclusions"))) = 0
+WHERE length(filter(file.inlinks, (l) => startswith(meta(l).path, "vicky/conclusions"))) = 0
 SORT length(file.inlinks) DESC, date DESC
 LIMIT 25
 ```
@@ -80,6 +80,18 @@ Old conclusions with few inbound links — verify or merge.
 TABLE WITHOUT ID file.link AS "Conclusion", length(file.inlinks) AS "Inlinks", date
 FROM "vicky/conclusions"
 WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2
+SORT date ASC
+LIMIT 20
+```
+
+## Stale sources
+
+Old sources still being cited — candidates for re-verify or rewrite.
+
+```dataview
+TABLE WITHOUT ID file.link AS "Source", length(file.inlinks) AS "Inlinks", date
+FROM "vicky/sources"
+WHERE date AND date(date) < date(today) - dur(90 days) AND length(file.inlinks) > 0
 SORT date ASC
 LIMIT 20
 ```

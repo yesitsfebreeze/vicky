@@ -169,14 +169,16 @@ function from_paths() {
 }
 function build_queries() {
   const p = from_paths();
+  const conclusions_prefix = p.conclusions.slice(1, -1);
   return {
     counts: `TABLE WITHOUT ID type AS Type, length(rows) AS Count FROM ${p.all} WHERE type GROUP BY type SORT length(rows) DESC`,
     recent: `TABLE file.folder AS Folder, type, date, tags FROM ${p.all} WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
     hubs: `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM ${p.hubs_scope} WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
     pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM ${p.pending} WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
-    awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM ${p.sources} WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
+    awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM ${p.sources} WHERE length(filter(file.inlinks, (l) => startswith(meta(l).path, "${conclusions_prefix}"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
     orphans: `LIST FROM ${p.hubs_scope} WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
     stale: `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM ${p.conclusions} WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
+    stale_sources: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM ${p.sources} WHERE date AND date(date) < date(today) - dur(90 days) AND length(file.inlinks) > 0 SORT date ASC LIMIT 20`,
     tags: `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM ${p.all} FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
   };
 }
@@ -259,6 +261,7 @@ function render(data) {
     section_table("Sources awaiting synthesis (no inbound conclusion)", data.awaiting_synthesis),
     section_list("Orphans (no in/out links)", data.orphans),
     section_table("Stale conclusions (>60d, <2 inlinks)", data.stale),
+    section_table("Stale sources (cited but old, >90d)", data.stale_sources),
     section_table("Tag cloud", data.tags)
   ].join("\n\n");
 }
@@ -22111,6 +22114,73 @@ function filter_nodes_by_prefix(raw, prefix) {
     return m[1].startsWith(prefix);
   }).join("\n");
 }
+async function query_graph_hits(question, prefix = null, graphPath = kb_graph(), limit = 10) {
+  if (!existsSync2(graphPath)) return [];
+  if (!await checkGraphify()) return [];
+  let raw = "";
+  try {
+    raw = await sh_async(`graphify query "${question}" --graph "${graphPath}"`);
+  } catch (_) {
+    return [];
+  }
+  if (!raw) return [];
+  const inlink_map = build_inlink_map(graphPath);
+  const snippet_map = build_snippet_map(graphPath);
+  const root2 = root().replace(/\\/g, "/");
+  const lines = raw.split("\n");
+  const seen = /* @__PURE__ */ new Map();
+  let rank = 0;
+  for (const line of lines) {
+    const m = line.match(/^NODE\s+(.+?)\.md\s+\[/);
+    if (!m) continue;
+    const src = m[1].replace(/\\/g, "/");
+    if (prefix && !(src.includes(`/${prefix}/`) || src.startsWith(`${prefix}/`))) continue;
+    const note_path = src.startsWith(root2 + "/") ? src + ".md" : `${root2}/${src}.md`;
+    if (seen.has(note_path)) continue;
+    const inlinks = inlink_map.get(src + ".md") || inlink_map.get(note_path) || 0;
+    const positional = 1 / (1 + rank / 5);
+    const inlink_boost = Math.log(1 + inlinks) / 10;
+    const score = +(0.5 + positional * 0.3 + Math.min(0.2, inlink_boost)).toFixed(4);
+    const snippet = (snippet_map.get(src + ".md") || snippet_map.get(note_path) || "").slice(0, 200);
+    seen.set(note_path, { note_path, score, inlinks, snippet });
+    rank++;
+    if (seen.size >= limit) break;
+  }
+  return [...seen.values()];
+}
+function build_inlink_map(graphPath) {
+  const map = /* @__PURE__ */ new Map();
+  try {
+    const { nodes = [], edges = [] } = JSON.parse(readFileSync(graphPath, "utf8"));
+    const node_file = /* @__PURE__ */ new Map();
+    for (const n of nodes) {
+      if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, "/"));
+    }
+    for (const e of edges) {
+      const target = e.target ?? e.to ?? e.dst;
+      const f = node_file.get(target);
+      if (!f) continue;
+      map.set(f, (map.get(f) || 0) + 1);
+    }
+  } catch (_) {
+  }
+  return map;
+}
+function build_snippet_map(graphPath) {
+  const map = /* @__PURE__ */ new Map();
+  try {
+    const { nodes = [] } = JSON.parse(readFileSync(graphPath, "utf8"));
+    for (const n of nodes) {
+      if (!n.source_file) continue;
+      const f = n.source_file.replace(/\\/g, "/");
+      if (map.has(f)) continue;
+      const text = n.source_text || n.text || n.name || "";
+      if (text) map.set(f, String(text).replace(/\s+/g, " ").trim());
+    }
+  } catch (_) {
+  }
+  return map;
+}
 var sh_bg, sh_async, graphifyAvailable, update_kb;
 var init_graph = __esm({
   "js/graph.js"() {
@@ -22152,8 +22222,10 @@ var init_graph = __esm({
 // js/vault.js
 import { existsSync as existsSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, mkdirSync as mkdirSync2, unlinkSync } from "fs";
 import { join as join4 } from "path";
-function search(dir, query) {
+function search_hits(dir, query, limit = 10) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const root2 = root();
   const hits = [];
   function walk(d) {
     if (!existsSync3(d)) return;
@@ -22167,17 +22239,22 @@ function search(dir, query) {
       if (!e.name.endsWith(".md")) continue;
       const text = readFileSync2(full, "utf8");
       const lower = text.toLowerCase();
-      const score = terms.filter((t) => lower.includes(t)).length;
-      if (!score) continue;
+      const matched = terms.filter((t) => lower.includes(t)).length;
+      if (!matched) continue;
       const lines = text.split("\n");
       const idx = lines.findIndex((l) => terms.some((t) => l.toLowerCase().includes(t)));
-      hits.push({ file: e.name, score, snippet: lines.slice(Math.max(0, idx - 1), idx + 5).join("\n") });
+      const snippet = lines.slice(Math.max(0, idx - 1), idx + 5).join("\n").slice(0, 200);
+      const coverage = matched / terms.length;
+      const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
+      const score = +(coverage * 0.6 + position * 0.4).toFixed(4);
+      const rel = full.replace(/\\/g, "/");
+      const note_path = rel.startsWith(root2.replace(/\\/g, "/") + "/") ? rel : `${root2}/${rel}`.replace(/\\/g, "/");
+      hits.push({ note_path, score, inlinks: 0, snippet });
     }
   }
   walk(dir);
   hits.sort((a, b) => b.score - a.score);
-  return hits.slice(0, 5).map((h) => `### ${h.file}
-${h.snippet}`).join("\n\n---\n\n") || null;
+  return hits.slice(0, limit);
 }
 function wikilink_block(heading, items) {
   const links = items.map((t) => `- [[${safe_link(t)}]]`).join("\n");
@@ -22186,6 +22263,18 @@ function wikilink_block(heading, items) {
 ## ${heading}
 ${links}
 `;
+}
+function strip_section(body, heading) {
+  const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, "g");
+  return body.replace(re, "").trimEnd();
+}
+function regen_body_sections(body, sources2, related) {
+  let out = body;
+  out = strip_section(out, "Sources");
+  out = strip_section(out, "Related");
+  if (sources2.length) out += wikilink_block("Sources", sources2);
+  if (related.length) out += wikilink_block("Related", related);
+  return out;
 }
 function frontmatter_links(key, items) {
   if (!items?.length) return "";
@@ -22204,7 +22293,7 @@ function save_note(title, body, { dir = sources(), tags = [], type = "source", s
     `type: ${type}`,
     `tags: [${tags.join(", ")}]`
   ].join("\n") + frontmatter_links("sources", sources2) + frontmatter_links("related", related);
-  const body_with_links = body + (sources2.length ? wikilink_block("Sources", sources2) : "") + (related.length ? wikilink_block("Related", related) : "");
+  const body_with_links = regen_body_sections(body, sources2, related);
   writeFileSync2(path, `---
 ${frontmatter}
 ---
@@ -22405,19 +22494,6 @@ function get_workflow_for(question) {
 function should_auto_enqueue() {
   return load_workflow().auto_enqueue !== false;
 }
-function get_focus() {
-  return load_workflow().focus;
-}
-function bias_by_focus(text) {
-  const focus = get_focus();
-  if (!focus.length || !text) return text;
-  const lower = text.toLowerCase();
-  const hits = focus.filter((f) => lower.includes(String(f).toLowerCase()));
-  if (!hits.length) return text;
-  return `[focus match: ${hits.join(", ")}]
-
-${text}`;
-}
 var DEFAULTS, cache, cache_mtime;
 var init_workflow = __esm({
   "js/workflow.js"() {
@@ -22436,43 +22512,57 @@ var init_workflow = __esm({
 });
 
 // js/tools/query.js
+function merge_hits(graph_hits, vault_hits, limit) {
+  const by_path = /* @__PURE__ */ new Map();
+  for (const h of graph_hits) {
+    by_path.set(h.note_path, { ...h, score: +(h.score + 0.05).toFixed(4) });
+  }
+  for (const h of vault_hits) {
+    const ex = by_path.get(h.note_path);
+    if (ex) {
+      ex.score = +Math.max(ex.score, h.score).toFixed(4);
+      if (!ex.snippet && h.snippet) ex.snippet = h.snippet;
+    } else {
+      by_path.set(h.note_path, h);
+    }
+  }
+  return [...by_path.values()].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+function human_summary(question, hits, gap) {
+  if (gap) return `0 hits \u2014 knowledge gap on "${question}"`;
+  const top = hits[0];
+  const name = top.note_path.split("/").pop().replace(/\.md$/, "");
+  return `${hits.length} hits, top: ${name} (score ${top.score}, ${top.inlinks} inlinks)`;
+}
 function register(server2) {
   server2.registerTool("query", {
-    description: "Query KB for question. Returns context if found + gap signal if not. Use vic:web-search if gap detected.",
+    description: "Query KB. Returns scored hits as JSON with gap signal. Use vic:web-search if gap detected.",
     inputSchema: { question: external_exports.string().describe("Question to answer") }
   }, async ({ question }) => {
     await ensure_init();
     const graph = kb_graph();
-    const [con, src] = await Promise.all([
-      query_graph(question, graph, "conclusions"),
-      query_graph(question, graph, "sources")
+    const [g_con, g_src] = await Promise.all([
+      query_graph_hits(question, "conclusions", graph, TOP_K),
+      query_graph_hits(question, "sources", graph, TOP_K)
     ]);
-    let parts = [con, src].filter(Boolean);
-    if (!parts.length) {
-      const vault_con = search(conclusions(), question);
-      const vault_src = search(sources(), question);
-      parts = [vault_con, vault_src].filter(Boolean);
-    }
-    if (!parts.length) {
-      return {
-        content: [{
-          type: "text",
-          text: `KNOWLEDGE GAP: "${question}"
-
-No conclusions or sources found. Use /vic:web-search to research and save findings as sources.`
-        }],
-        isError: false
-      };
-    }
-    const body = bias_by_focus(parts.join("\n\n")).slice(0, 4e3);
+    const graph_hits = [...g_con, ...g_src];
+    const v_con = search_hits(conclusions(), question, TOP_K);
+    const v_src = search_hits(sources(), question, TOP_K);
+    const vault_hits = [...v_con, ...v_src];
+    const hits = merge_hits(graph_hits, vault_hits, TOP_K);
+    const gap = hits.length === 0;
     const wf = get_workflow_for(question);
-    return { content: [{ type: "text", text: `Question: ${question}
-Workflow: ${wf}
-
-Knowledge:
-${body}` }] };
+    const payload2 = {
+      _human: human_summary(question, hits, gap),
+      question,
+      workflow: wf,
+      gap,
+      hits
+    };
+    return { content: [{ type: "text", text: JSON.stringify(payload2, null, 2) }] };
   });
 }
+var TOP_K;
 var init_query = __esm({
   "js/tools/query.js"() {
     init_zod();
@@ -22481,13 +22571,37 @@ var init_query = __esm({
     init_vault();
     init_init();
     init_workflow();
+    TOP_K = 10;
   }
 });
 
 // js/tools/research-gap.js
+function merge_hits2(graph_hits, vault_hits, limit) {
+  const by_path = /* @__PURE__ */ new Map();
+  for (const h of graph_hits) {
+    by_path.set(h.note_path, { ...h, score: +(h.score + 0.05).toFixed(4) });
+  }
+  for (const h of vault_hits) {
+    const ex = by_path.get(h.note_path);
+    if (ex) {
+      ex.score = +Math.max(ex.score, h.score).toFixed(4);
+      if (!ex.snippet && h.snippet) ex.snippet = h.snippet;
+    } else {
+      by_path.set(h.note_path, h);
+    }
+  }
+  return [...by_path.values()].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+function human_summary2(question, hits, gap, enqueued) {
+  if (gap && enqueued) return `gap on "${question}" \u2014 auto-enqueued`;
+  if (gap) return `gap on "${question}" \u2014 no auto-enqueue`;
+  const top = hits[0];
+  const name = top.note_path.split("/").pop().replace(/\.md$/, "");
+  return `${hits.length} hits, top: ${name} (score ${top.score}, ${top.inlinks} inlinks)`;
+}
 function register2(server2, notify2) {
   server2.registerTool("research-gap", {
-    description: "Query KB. If gap found, auto-enqueue web research. Returns context + status.",
+    description: "Query KB. If gap found, auto-enqueue web research. Returns scored hits + status as JSON.",
     inputSchema: {
       question: external_exports.string().describe("Question to answer"),
       auto_research: external_exports.boolean().optional().describe("Auto-enqueue web research if gap (default: true)")
@@ -22495,71 +22609,46 @@ function register2(server2, notify2) {
   }, async ({ question, auto_research = true }) => {
     await ensure_init();
     const graph = kb_graph();
-    const [con, src] = await Promise.all([
-      query_graph(question, graph, "conclusions"),
-      query_graph(question, graph, "sources")
+    const [g_con, g_src] = await Promise.all([
+      query_graph_hits(question, "conclusions", graph, TOP_K2),
+      query_graph_hits(question, "sources", graph, TOP_K2)
     ]);
-    let parts = [con, src].filter(Boolean);
-    if (!parts.length) {
-      const vault_con = search(conclusions(), question);
-      const vault_src = search(sources(), question);
-      parts = [vault_con, vault_src].filter(Boolean);
-    }
+    const graph_hits = [...g_con, ...g_src];
+    const v_con = search_hits(conclusions(), question, TOP_K2);
+    const v_src = search_hits(sources(), question, TOP_K2);
+    const vault_hits = [...v_con, ...v_src];
+    const hits = merge_hits2(graph_hits, vault_hits, TOP_K2);
+    const gap = hits.length === 0;
     const workflow = get_workflow_for(question);
-    if (parts.length) {
-      const body = bias_by_focus(parts.join("\n\n")).slice(0, 4e3);
-      return {
-        content: [{
-          type: "text",
-          text: `\u2713 Knowledge found.
-
-Question: ${question}
-Workflow: ${workflow}
-
-Context:
-${body}`
-        }]
-      };
-    }
-    const should = auto_research && should_auto_enqueue();
-    if (should) {
-      const pending2 = list_pending();
-      const alreadyEnqueued = pending2.some(
-        (f) => f.toLowerCase().includes(question.slice(0, 20).toLowerCase().replace(/[^\w]/g, ""))
-      );
-      if (!alreadyEnqueued) {
-        enqueue_research(question, { requested_by: workflow });
-        notify2("info", `vicky: auto-enqueued research for "${question}" (workflow: ${workflow})`);
-        return {
-          content: [{
-            type: "text",
-            text: `\u2717 Knowledge gap: "${question}"
-
-Workflow: ${workflow}
-Auto-enqueued. Run /vicky:research "${question}" to fetch + absorb, or /vicky:learn to drain pending without fetching.`
-          }]
-        };
-      } else {
-        return {
-          content: [{
-            type: "text",
-            text: `\u2717 Knowledge gap: "${question}"
-
-Already in pending queue. Run /vicky:research "${question}" to fetch + absorb, or /vicky:learn to drain.`
-          }]
-        };
+    let enqueued = false;
+    let already_pending = false;
+    if (gap) {
+      const should = auto_research && should_auto_enqueue();
+      if (should) {
+        const pending2 = list_pending();
+        already_pending = pending2.some(
+          (f) => f.toLowerCase().includes(question.slice(0, 20).toLowerCase().replace(/[^\w]/g, ""))
+        );
+        if (!already_pending) {
+          enqueue_research(question, { requested_by: workflow });
+          notify2("info", `vicky: auto-enqueued research for "${question}" (workflow: ${workflow})`);
+          enqueued = true;
+        }
       }
     }
-    return {
-      content: [{
-        type: "text",
-        text: `\u2717 Knowledge gap: "${question}"
-
-No KB match. Use /vic:web-search "question" to research manually.`
-      }]
+    const payload2 = {
+      _human: human_summary2(question, hits, gap, enqueued || already_pending),
+      question,
+      workflow,
+      gap,
+      hits,
+      enqueued,
+      already_pending
     };
+    return { content: [{ type: "text", text: JSON.stringify(payload2, null, 2) }] };
   });
 }
+var TOP_K2;
 var init_research_gap = __esm({
   "js/tools/research-gap.js"() {
     init_zod();
@@ -22568,6 +22657,7 @@ var init_research_gap = __esm({
     init_vault();
     init_init();
     init_workflow();
+    TOP_K2 = 10;
   }
 });
 
@@ -22680,34 +22770,114 @@ var init_link = __esm({
   }
 });
 
+// js/jobs.js
+function make_id(kind) {
+  return `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+function sweep() {
+  const now = Date.now();
+  const cutoff = 60 * 60 * 1e3;
+  for (const [id, j] of jobs) {
+    if (j.status !== "running" && now - j.started > cutoff) jobs.delete(id);
+  }
+  if (jobs.size > 100) {
+    const entries = [...jobs.entries()].filter(([, j]) => j.status !== "running").sort((a, b) => a[1].started - b[1].started);
+    while (jobs.size > 100 && entries.length) {
+      const [id] = entries.shift();
+      jobs.delete(id);
+    }
+  }
+}
+function create(kind) {
+  sweep();
+  const id = make_id(kind);
+  const now = Date.now();
+  jobs.set(id, {
+    kind,
+    status: "running",
+    started: now,
+    progress: {},
+    counts: null,
+    error: null,
+    last_update: now
+  });
+  return id;
+}
+function update(id, patch) {
+  const j = jobs.get(id);
+  if (!j) return;
+  if (patch.progress) j.progress = { ...j.progress, ...patch.progress };
+  if (patch.counts) j.counts = { ...j.counts || {}, ...patch.counts };
+  if (patch.status) j.status = patch.status;
+  if (patch.error !== void 0) j.error = patch.error;
+  j.last_update = Date.now();
+}
+function get(id) {
+  return jobs.get(id) || null;
+}
+function reject_if_running(kind) {
+  for (const [id, j] of jobs) {
+    if (j.kind === kind && j.status === "running") return id;
+  }
+  return null;
+}
+var jobs;
+var init_jobs = __esm({
+  "js/jobs.js"() {
+    jobs = /* @__PURE__ */ new Map();
+  }
+});
+
 // js/tools/relink.js
+import { readdirSync as readdirSync4 } from "fs";
+function est_relink_seconds() {
+  try {
+    const n = readdirSync4(conclusions()).filter((f) => f.endsWith(".md")).length;
+    return Math.max(10, Math.min(600, Math.round(n * 0.3)));
+  } catch {
+    return 10;
+  }
+}
 function register5(server2, notify2) {
   server2.registerTool("relink", {
     description: "Rebuild related: frontmatter for all files from the unified KB graph. Runs independently of a research pass.",
     inputSchema: {}
   }, async () => {
     await ensure_init();
+    const existing = reject_if_running("relink");
+    if (existing) {
+      return { content: [{ type: "text", text: JSON.stringify({ status: "queued", job_id: existing, est_seconds: est_relink_seconds() }) }] };
+    }
+    const job_id = create("relink");
     (async () => {
       try {
+        update(job_id, { progress: { phase: "graph" } });
         notify2("info", "vicky relink: updating KB graph...");
         const upd = await update_kb();
         if (upd && upd.ok === false) {
           const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY) and retry" : upd.reason === "graphify_missing" ? "run `npm install` in the vicky plugin root" : "corpus may be too small for a graph";
           notify2("info", `vicky relink: graph not produced (${upd.reason}) \u2014 ${hint}.`);
+          update(job_id, { status: "failed", error: `graph_not_produced:${upd.reason}` });
           return;
         }
         notify2("info", `vicky relink: graph built via ${upd?.backend ?? "graphify"}; querying for related links...`);
+        update(job_id, { progress: { phase: "relink" } });
         const graph = kb_graph();
         const [src, con] = await Promise.all([
           relink_dir(sources(), graph),
           relink_dir(conclusions(), graph)
         ]);
         notify2("info", `vicky relink done: ${src.patched + con.patched} relinked (${src.patched}/${src.total} sources, ${con.patched}/${con.total} conclusions).`);
+        update(job_id, {
+          status: "done",
+          counts: { relinked: src.patched + con.patched, sources_relinked: src.patched, sources_total: src.total, conclusions_relinked: con.patched, conclusions_total: con.total }
+        });
       } catch (e) {
+        update(job_id, { status: "failed", error: e.message });
         notify2("error", `vicky relink failed: ${e.message}`);
       }
     })();
-    return { content: [{ type: "text", text: "Relinking all conclusions in background." }] };
+    return { content: [{ type: "text", text: JSON.stringify({ status: "queued", job_id, est_seconds: est_relink_seconds() }) }] };
   });
 }
 var init_relink = __esm({
@@ -22716,12 +22886,60 @@ var init_relink = __esm({
     init_graph();
     init_link();
     init_init();
+    init_jobs();
   }
 });
 
 // js/tools/learn.js
 import { join as join8 } from "path";
-import { existsSync as existsSync6 } from "fs";
+import { existsSync as existsSync6, readFileSync as readFileSync5, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync5 } from "fs";
+import { execSync } from "child_process";
+function git_mtime(path) {
+  try {
+    const iso = execSync(`git log -1 --format=%cI -- "${path}"`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    if (iso) return iso.split("T")[0];
+  } catch {
+  }
+  try {
+    return statSync2(path).mtime.toISOString().split("T")[0];
+  } catch {
+    return (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  }
+}
+function autofill_frontmatter(path) {
+  if (!existsSync6(path)) return false;
+  let text = readFileSync5(path, "utf8");
+  const fm_match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  let body_block = fm_match ? fm_match[1] : "";
+  const has = (key) => new RegExp(`^${key}:`, "m").test(body_block);
+  const additions = [];
+  if (!has("type")) additions.push("type: source");
+  if (!has("date")) additions.push(`date: ${git_mtime(path)}`);
+  if (!has("tags")) additions.push("tags: []");
+  if (!additions.length) return false;
+  if (fm_match) {
+    const new_fm = (body_block.trimEnd() + "\n" + additions.join("\n")).trim();
+    text = text.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${new_fm}
+---`);
+  } else {
+    text = `---
+${additions.join("\n")}
+---
+
+` + text;
+  }
+  writeFileSync3(path, text);
+  return true;
+}
+function est_learn_seconds() {
+  try {
+    const n = readdirSync5(pending()).filter((f) => f.endsWith(".md")).length;
+    return Math.max(5, Math.min(300, Math.round(n * 0.5)));
+  } catch {
+    return 5;
+  }
+}
 function register6(server2, notify2) {
   server2.registerTool("learn", {
     description: "Walk the KB: drain pending queue \u2192 promote to sources \u2192 relink. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` or `complete-research` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
@@ -22731,6 +22949,11 @@ function register6(server2, notify2) {
   }, async ({ count }) => {
     await ensure_init();
     const n = count && count > 0 ? count : 20;
+    const existing = reject_if_running("learn");
+    if (existing) {
+      return { content: [{ type: "text", text: JSON.stringify({ status: "queued", job_id: existing, est_seconds: est_learn_seconds() }) }] };
+    }
+    const job_id = create("learn");
     (async () => {
       try {
         const wf = load_workflow();
@@ -22746,12 +22969,15 @@ function register6(server2, notify2) {
         if (triage) pending2 = pending2.filter((x) => x.prio === "high");
         pending2.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
         pending2 = pending2.slice(0, n).map((x) => x.pf);
+        update(job_id, { progress: { phase: "drain", total: pending2.length } });
         let promoted = 0;
+        let patched = 0;
         for (const pf of pending2) {
           try {
             const slug = pf.replace(/\.md$/, "");
             const srcPath = join8(sources(), pf);
             if (existsSync6(srcPath)) {
+              if (autofill_frontmatter(srcPath)) patched++;
               delete_pending(pf);
               continue;
             }
@@ -22773,6 +22999,7 @@ ${ctx.trim()}
               type: "source",
               related: pending_sources
             });
+            autofill_frontmatter(join8(sources(), `${slug}.md`));
             delete_pending(pf);
             promoted++;
           } catch (e) {
@@ -22780,6 +23007,8 @@ ${ctx.trim()}
           }
         }
         if (promoted) notify2("info", `vicky: promoted ${promoted} pending \u2192 source.`);
+        if (patched) notify2("info", `vicky: backfilled frontmatter on ${patched} existing sources.`);
+        update(job_id, { progress: { phase: "relink" }, counts: { promoted, patched } });
         notify2("info", "vicky: relinking...");
         const graph = kb_graph();
         const [src, con] = await Promise.all([
@@ -22787,11 +23016,16 @@ ${ctx.trim()}
           relink_dir(conclusions(), graph)
         ]);
         notify2("info", `vicky done: ${src.patched + con.patched} relinked.`);
+        update(job_id, {
+          status: "done",
+          counts: { promoted, patched, relinked: src.patched + con.patched, sources_relinked: src.patched, conclusions_relinked: con.patched }
+        });
       } catch (e) {
+        update(job_id, { status: "failed", error: e.message });
         notify2("error", `vicky learn failed: ${e.message}`);
       }
     })();
-    return { content: [{ type: "text", text: `Learning up to ${n} pending notes in background.` }] };
+    return { content: [{ type: "text", text: JSON.stringify({ status: "queued", job_id, est_seconds: est_learn_seconds() }) }] };
   });
 }
 var init_learn = __esm({
@@ -22803,10 +23037,19 @@ var init_learn = __esm({
     init_vault();
     init_init();
     init_workflow();
+    init_jobs();
   }
 });
 
 // js/tools/enqueue.js
+import { existsSync as existsSync7 } from "fs";
+import { join as join9 } from "path";
+function validate_frontmatter(fm) {
+  const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
+  if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
+  if (!Array.isArray(fm.tags)) return "tags must be an array";
+  return null;
+}
 function register7(server2) {
   server2.registerTool("enqueue", {
     description: "Queue a research question. Non-blocking \u2014 writes a pending stub. /vicky:research fetches sources for it and absorbs; /vicky:learn drains pending without fetching.",
@@ -22815,21 +23058,47 @@ function register7(server2) {
       context: external_exports.string().optional().describe("Why this is needed / surrounding context"),
       requested_by: external_exports.string().optional().describe("File, task, or topic that triggered the request"),
       priority: external_exports.enum(["low", "med", "high"]).optional().describe("Default: med"),
-      sources: external_exports.array(external_exports.string()).optional().describe("Existing source note titles that prompted this question (linked via [[wikilinks]] in the resulting conclusion)")
+      sources: external_exports.array(external_exports.string()).optional().describe("Existing source note titles that prompted this question (linked via [[wikilinks]] in the resulting conclusion)"),
+      type: external_exports.string().optional().describe("Frontmatter type (default: research-pending)"),
+      date: external_exports.string().optional().describe("ISO date YYYY-MM-DD (default: today)"),
+      tags: external_exports.array(external_exports.string()).optional().describe("Frontmatter tags (default: [research, pending])")
     }
-  }, async ({ question, context, requested_by, priority, sources: sources2 = [] }) => {
+  }, async ({ question, context, requested_by, priority, sources: sources2 = [], type, date: date3, tags }) => {
     await ensure_init();
-    const path = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
+    if (!question || !question.trim()) {
+      return { content: [{ type: "text", text: "Error: question is required." }], isError: true };
+    }
+    if (question.length > MAX_TITLE) {
+      return { content: [{ type: "text", text: `Error: question length ${question.length} exceeds ${MAX_TITLE}. Shorten the title and pass long-form text via 'context'.` }], isError: true };
+    }
+    const fm = {
+      type: type || PENDING_TYPE,
+      date: date3 || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      tags: Array.isArray(tags) ? tags : ["research", "pending"]
+    };
+    const err = validate_frontmatter(fm);
+    if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
+    const slug = safe_name2(question);
+    const path = join9(pending(), `${slug}.md`);
+    if (existsSync7(path)) {
+      return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
+    }
+    const out = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
     const depth = list_pending().length;
-    return { content: [{ type: "text", text: `Queued: ${path}
+    return { content: [{ type: "text", text: `Queued: ${out}
 Pending queue depth: ${depth}` }] };
   });
 }
+var PENDING_TYPE, MAX_TITLE, safe_name2;
 var init_enqueue = __esm({
   "js/tools/enqueue.js"() {
     init_zod();
+    init_fs();
     init_vault();
     init_init();
+    PENDING_TYPE = "research-pending";
+    MAX_TITLE = 80;
+    safe_name2 = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
   }
 });
 
@@ -22870,8 +23139,8 @@ var init_web_research = __esm({
 });
 
 // js/tools/promote.js
-import { readFileSync as readFileSync5, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, existsSync as existsSync7 } from "fs";
-import { join as join9 } from "path";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync4, unlinkSync as unlinkSync2, existsSync as existsSync8 } from "fs";
+import { join as join10 } from "path";
 function register9(server2) {
   server2.registerTool("promote", {
     description: "Move a research item from research/ to conclusions/ after findings added",
@@ -22884,15 +23153,15 @@ function register9(server2) {
     const filename = file.endsWith(".md") ? file : `${file}.md`;
     const fromDir = type === "research" ? research() : conclusions();
     const toDir = type === "research" ? conclusions() : research();
-    const fromPath = join9(fromDir, filename);
-    const toPath = join9(toDir, filename);
-    if (!existsSync7(fromPath)) {
+    const fromPath = join10(fromDir, filename);
+    const toPath = join10(toDir, filename);
+    if (!existsSync8(fromPath)) {
       return { content: [{
         type: "text",
         text: `Error: File not found at ${fromPath}`
       }] };
     }
-    let content = readFileSync5(fromPath, "utf8");
+    let content = readFileSync6(fromPath, "utf8");
     const oldType = type === "research" ? "research" : "conclusion";
     const newType = type === "research" ? "conclusion" : "research";
     content = content.replace(/^type: research$/m, `type: ${newType}`);
@@ -22902,7 +23171,7 @@ function register9(server2) {
       content = content.replace(/tags: \[\s*,\s*/g, "tags: [");
       content = content.replace(/,\s*\]/g, "]");
     }
-    writeFileSync3(toPath, content, "utf8");
+    writeFileSync4(toPath, content, "utf8");
     unlinkSync2(fromPath);
     return { content: [{
       type: "text",
@@ -22919,8 +23188,8 @@ var init_promote = __esm({
 });
 
 // js/tools/complete-research.js
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, existsSync as existsSync8, readdirSync as readdirSync4 } from "fs";
-import { join as join10 } from "path";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync5, unlinkSync as unlinkSync3, existsSync as existsSync9, readdirSync as readdirSync6 } from "fs";
+import { join as join11 } from "path";
 function register10(server2) {
   server2.registerTool("complete-research", {
     description: "Mark research as complete: checks for ## Research section, validates confidence, auto-promotes to conclusions",
@@ -22934,7 +23203,7 @@ function register10(server2) {
     let filesToProcess = [];
     if (file) {
       const filename = file.endsWith(".md") ? file : `${file}.md`;
-      if (existsSync8(join10(research(), filename))) {
+      if (existsSync9(join11(research(), filename))) {
         filesToProcess = [filename];
       } else {
         return { content: [{
@@ -22943,14 +23212,14 @@ function register10(server2) {
         }] };
       }
     } else {
-      if (existsSync8(research())) {
-        filesToProcess = readdirSync4(research()).filter((f) => f.endsWith(".md"));
+      if (existsSync9(research())) {
+        filesToProcess = readdirSync6(research()).filter((f) => f.endsWith(".md"));
       }
     }
     for (const filename of filesToProcess) {
-      const fromPath = join10(research(), filename);
-      const toPath = join10(conclusions(), filename);
-      const content = readFileSync6(fromPath, "utf8");
+      const fromPath = join11(research(), filename);
+      const toPath = join11(conclusions(), filename);
+      const content = readFileSync7(fromPath, "utf8");
       const researchMatch = content.match(/^## Research\s*\n([\s\S]*?)(?=^##|$)/m);
       if (!researchMatch) {
         results.push({ file: filename, status: "skip", reason: "No ## Research section found" });
@@ -22971,7 +23240,7 @@ function register10(server2) {
       promoted = promoted.replace(/\[\s*,/g, "[");
       promoted = promoted.replace(/,\s*\]/g, "]");
       promoted = promoted.replace(/\[\s*\]/g, "[]");
-      writeFileSync4(toPath, promoted, "utf8");
+      writeFileSync5(toPath, promoted, "utf8");
       unlinkSync3(fromPath);
       results.push({
         file: filename,
@@ -23126,12 +23395,42 @@ var init_dql = __esm({
   }
 });
 
+// js/tools/job-status.js
+function register13(server2) {
+  server2.registerTool("job-status", {
+    description: "Poll the status of a background job (learn, relink) by job_id. Returns running|done|failed|unknown, progress.phase, counts, and elapsed_ms.",
+    inputSchema: {
+      job_id: external_exports.string().describe("The job_id returned from learn or relink.")
+    }
+  }, async ({ job_id }) => {
+    const j = get(job_id);
+    if (!j) {
+      return { content: [{ type: "text", text: JSON.stringify({ status: "unknown", job_id }) }] };
+    }
+    const out = {
+      status: j.status,
+      kind: j.kind,
+      progress: j.progress,
+      counts: j.counts,
+      elapsed_ms: Date.now() - j.started
+    };
+    if (j.error) out.error = j.error;
+    return { content: [{ type: "text", text: JSON.stringify(out) }] };
+  });
+}
+var init_job_status = __esm({
+  "js/tools/job-status.js"() {
+    init_zod();
+    init_jobs();
+  }
+});
+
 // js/mcp-server.js
 var mcp_server_exports = {};
 __export(mcp_server_exports, {
   config: () => config2
 });
-import { readFileSync as readFileSync7 } from "fs";
+import { readFileSync as readFileSync8 } from "fs";
 var config2, server, notify, transport;
 var init_mcp_server2 = __esm({
   async "js/mcp-server.js"() {
@@ -23149,6 +23448,7 @@ var init_mcp_server2 = __esm({
     init_complete_research();
     init_dashboard2();
     init_dql();
+    init_job_status();
     config2 = {
       autoEnrichDefault: true,
       autoResearchGaps: true,
@@ -23156,7 +23456,7 @@ var init_mcp_server2 = __esm({
     };
     try {
       const configPath = "./vicky.config.json";
-      const configText = readFileSync7(configPath, "utf8");
+      const configText = readFileSync8(configPath, "utf8");
       config2 = { ...config2, ...JSON.parse(configText) };
     } catch (_) {
     }
@@ -23186,6 +23486,7 @@ var init_mcp_server2 = __esm({
     register10(server);
     register11(server);
     register12(server);
+    register13(server);
     transport = new StdioServerTransport();
     await server.connect(transport);
   }
@@ -23200,7 +23501,7 @@ if (mode === "init") {
 } else if (mode === "dashboard") {
   const args = process.argv.slice(3);
   const { build_dashboard: build_dashboard2 } = await Promise.resolve().then(() => (init_dashboard(), dashboard_exports));
-  const { mkdirSync: mkdirSync3, writeFileSync: writeFileSync5 } = await import("fs");
+  const { mkdirSync: mkdirSync3, writeFileSync: writeFileSync6 } = await import("fs");
   const fs = await Promise.resolve().then(() => (init_fs(), fs_exports));
   try {
     const { data, markdown } = build_dashboard2();
@@ -23208,7 +23509,7 @@ if (mode === "init") {
       console.log(JSON.stringify(data, null, 2));
     } else if (args.includes("--write")) {
       mkdirSync3(fs.root(), { recursive: true });
-      writeFileSync5(fs.report_md(), markdown);
+      writeFileSync6(fs.report_md(), markdown);
       console.log(fs.report_md());
     } else {
       console.log(markdown);

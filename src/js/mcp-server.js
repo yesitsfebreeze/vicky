@@ -15,6 +15,7 @@ import * as promote     from './tools/promote.js';
 import * as completeResearch from './tools/complete-research.js';
 import * as dashboard   from './tools/dashboard.js';
 import * as dql         from './tools/dql.js';
+import * as jobStatus  from './tools/job-status.js';
 
 // Load config with defaults
 let config = {
@@ -58,6 +59,7 @@ promote.register(server);
 completeResearch.register(server);
 dashboard.register(server);
 dql.register(server);
+jobStatus.register(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

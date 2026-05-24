@@ -27,12 +27,58 @@ export function search(dir, query) {
 	return hits.slice(0, 5).map(h => `### ${h.file}\n${h.snippet}`).join('\n\n---\n\n') || null;
 }
 
+export function search_hits(dir, query, limit = 10) {
+	const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+	if (!terms.length) return [];
+	const root = fs.root();
+	const hits = [];
+	function walk(d) {
+		if (!existsSync(d)) return;
+		for (const e of readdirSync(d, { withFileTypes: true })) {
+			if (e.name.startsWith('.')) continue;
+			const full = join(d, e.name);
+			if (e.isDirectory()) { walk(full); continue; }
+			if (!e.name.endsWith('.md')) continue;
+			const text = readFileSync(full, 'utf8');
+			const lower = text.toLowerCase();
+			const matched = terms.filter(t => lower.includes(t)).length;
+			if (!matched) continue;
+			const lines = text.split('\n');
+			const idx = lines.findIndex(l => terms.some(t => l.toLowerCase().includes(t)));
+			const snippet = lines.slice(Math.max(0, idx - 1), idx + 5).join('\n').slice(0, 200);
+			const coverage = matched / terms.length;
+			const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
+			const score = +(coverage * 0.6 + position * 0.4).toFixed(4);
+			const rel = full.replace(/\\/g, '/');
+			const note_path = rel.startsWith(root.replace(/\\/g, '/') + '/') ? rel : `${root}/${rel}`.replace(/\\/g, '/');
+			hits.push({ note_path, score, inlinks: 0, snippet });
+		}
+	}
+	walk(dir);
+	hits.sort((a, b) => b.score - a.score);
+	return hits.slice(0, limit);
+}
+
 const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
 const safe_link = t => t.replace(/["'[\]|#^\\]/g, '').trim();
 
 function wikilink_block(heading, items) {
 	const links = items.map(t => `- [[${safe_link(t)}]]`).join('\n');
 	return `\n\n## ${heading}\n${links}\n`;
+}
+
+function strip_section(body, heading) {
+	const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, 'g');
+	return body.replace(re, '').trimEnd();
+}
+
+function regen_body_sections(body, sources, related) {
+	let out = body;
+	out = strip_section(out, 'Sources');
+	out = strip_section(out, 'Related');
+	if (sources.length) out += wikilink_block('Sources', sources);
+	if (related.length) out += wikilink_block('Related', related);
+	return out;
 }
 
 function frontmatter_links(key, items) {
@@ -53,9 +99,7 @@ export function save_note(title, body, { dir = fs.sources(), tags = [], type = '
 	].join('\n')
 		+ frontmatter_links('sources', sources)
 		+ frontmatter_links('related', related);
-	const body_with_links = body
-		+ (sources.length ? wikilink_block('Sources', sources) : '')
-		+ (related.length ? wikilink_block('Related', related) : '');
+	const body_with_links = regen_body_sections(body, sources, related);
 	writeFileSync(path, `---\n${frontmatter}\n---\n\n${body_with_links}\n`);
 	return path;
 }

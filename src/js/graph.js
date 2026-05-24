@@ -76,6 +76,70 @@ function filter_nodes_by_prefix(raw, prefix) {
 	}).join('\n');
 }
 
+export async function query_graph_hits(question, prefix = null, graphPath = fs.kb_graph(), limit = 10) {
+	if (!existsSync(graphPath)) return [];
+	if (!(await checkGraphify())) return [];
+	let raw = '';
+	try { raw = await sh_async(`graphify query "${question}" --graph "${graphPath}"`); } catch (_) { return []; }
+	if (!raw) return [];
+	const inlink_map = build_inlink_map(graphPath);
+	const snippet_map = build_snippet_map(graphPath);
+	const root = fs.root().replace(/\\/g, '/');
+	const lines = raw.split('\n');
+	const seen = new Map();
+	let rank = 0;
+	for (const line of lines) {
+		const m = line.match(/^NODE\s+(.+?)\.md\s+\[/);
+		if (!m) continue;
+		const src = m[1].replace(/\\/g, '/');
+		if (prefix && !(src.includes(`/${prefix}/`) || src.startsWith(`${prefix}/`))) continue;
+		const note_path = src.startsWith(root + '/') ? src + '.md' : `${root}/${src}.md`;
+		if (seen.has(note_path)) continue;
+		const inlinks = inlink_map.get(src + '.md') || inlink_map.get(note_path) || 0;
+		const positional = 1 / (1 + rank / 5);
+		const inlink_boost = Math.log(1 + inlinks) / 10;
+		const score = +(0.5 + positional * 0.3 + Math.min(0.2, inlink_boost)).toFixed(4);
+		const snippet = (snippet_map.get(src + '.md') || snippet_map.get(note_path) || '').slice(0, 200);
+		seen.set(note_path, { note_path, score, inlinks, snippet });
+		rank++;
+		if (seen.size >= limit) break;
+	}
+	return [...seen.values()];
+}
+
+function build_inlink_map(graphPath) {
+	const map = new Map();
+	try {
+		const { nodes = [], edges = [] } = JSON.parse(readFileSync(graphPath, 'utf8'));
+		const node_file = new Map();
+		for (const n of nodes) {
+			if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, '/'));
+		}
+		for (const e of edges) {
+			const target = e.target ?? e.to ?? e.dst;
+			const f = node_file.get(target);
+			if (!f) continue;
+			map.set(f, (map.get(f) || 0) + 1);
+		}
+	} catch (_) { /* ignore */ }
+	return map;
+}
+
+function build_snippet_map(graphPath) {
+	const map = new Map();
+	try {
+		const { nodes = [] } = JSON.parse(readFileSync(graphPath, 'utf8'));
+		for (const n of nodes) {
+			if (!n.source_file) continue;
+			const f = n.source_file.replace(/\\/g, '/');
+			if (map.has(f)) continue;
+			const text = n.source_text || n.text || n.name || '';
+			if (text) map.set(f, String(text).replace(/\s+/g, ' ').trim());
+		}
+	} catch (_) { /* ignore */ }
+	return map;
+}
+
 export function list_titles_from_graph(graphPath = fs.kb_graph(), prefix = null) {
 	if (!existsSync(graphPath)) return [];
 	try {
