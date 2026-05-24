@@ -53,7 +53,7 @@ __export(fs_exports, {
   vault_name: () => vault_name,
   workflow_md: () => workflow_md
 });
-import { dirname, join, basename } from "path";
+import { dirname, join, basename, resolve } from "path";
 import { fileURLToPath } from "url";
 var SKILL_DIR, root, sources, conclusions, research, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
 var init_fs = __esm({
@@ -73,7 +73,7 @@ var init_fs = __esm({
     dashboard_md = () => join(root(), "Dashboard.md");
     report_md = () => join(root(), "Dashboard.report.md");
     template_dir = () => join(SKILL_DIR, "..", "scaffold");
-    vault_name = () => process.env.OBSIDIAN_VAULT || basename(root());
+    vault_name = () => process.env.OBSIDIAN_VAULT || basename(resolve(root(), ".."));
     obsidian_cli = () => process.env.OBSIDIAN_CLI || (process.platform === "win32" ? "obsidian.com" : "obsidian");
   }
 });
@@ -155,6 +155,31 @@ __export(dashboard_exports, {
 });
 import { execFileSync } from "child_process";
 import { basename as basename2 } from "path";
+function from_paths() {
+  const r = root().replace(/\\/g, "/").replace(/\/+$/, "");
+  const join_q = (folder) => r === "" || r === "." ? `"${folder}"` : `"${r}/${folder}"`;
+  const all = r === "" || r === "." ? `"."` : `"${r}"`;
+  return {
+    all,
+    sources: join_q("sources"),
+    conclusions: join_q("conclusions"),
+    pending: join_q("pending"),
+    hubs_scope: `${join_q("conclusions")} OR ${join_q("sources")}`
+  };
+}
+function build_queries() {
+  const p = from_paths();
+  return {
+    counts: `TABLE WITHOUT ID type AS Type, length(rows) AS Count FROM ${p.all} WHERE type GROUP BY type SORT length(rows) DESC`,
+    recent: `TABLE file.folder AS Folder, type, date, tags FROM ${p.all} WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
+    hubs: `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM ${p.hubs_scope} WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
+    pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM ${p.pending} WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
+    awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM ${p.sources} WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
+    orphans: `LIST FROM ${p.hubs_scope} WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
+    stale: `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM ${p.conclusions} WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
+    tags: `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM ${p.all} FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
+  };
+}
 function payload(sql) {
   const safe = sql.replace(/`/g, "\\`").replace(/\$/g, "\\$");
   return `(async()=>{const dv=app.plugins.plugins.dataview&&app.plugins.plugins.dataview.api;if(!dv)return JSON.stringify({error:'dataview-not-loaded'});try{const r=await dv.query(\`${safe}\`);return JSON.stringify(r.successful?r.value:{error:r.error});}catch(e){return JSON.stringify({error:String(e)});}})()`;
@@ -184,7 +209,7 @@ function run_dql(sql) {
 }
 function run_all() {
   const out = {};
-  for (const [k, sql] of Object.entries(QUERIES)) {
+  for (const [k, sql] of Object.entries(build_queries())) {
     try {
       out[k] = run_dql(sql);
     } catch (e) {
@@ -241,20 +266,10 @@ function build_dashboard() {
   const data = run_all();
   return { data, markdown: render(data) };
 }
-var QUERIES, EVAL_TIMEOUT_MS;
+var EVAL_TIMEOUT_MS;
 var init_dashboard = __esm({
   "js/dashboard.js"() {
     init_fs();
-    QUERIES = {
-      counts: `TABLE WITHOUT ID type AS Type, length(rows) AS Count FROM "." WHERE type GROUP BY type SORT length(rows) DESC`,
-      recent: `TABLE file.folder AS Folder, type, date, tags FROM "." WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
-      hubs: `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM "conclusions" OR "sources" WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
-      pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM "pending" WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
-      awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM "sources" WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
-      orphans: `LIST FROM "conclusions" OR "sources" WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
-      stale: `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM "conclusions" WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
-      tags: `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`
-    };
     EVAL_TIMEOUT_MS = Number(process.env.OBSIDIAN_TIMEOUT_MS) || 1e4;
   }
 });
@@ -13015,7 +13030,7 @@ var init_protocol = __esm({
               return;
             }
             const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-            await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
+            await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
             options?.signal?.throwIfAborted();
           }
         } catch (error2) {
@@ -13032,7 +13047,7 @@ var init_protocol = __esm({
        */
       request(request, resultSchema, options) {
         const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-        return new Promise((resolve2, reject) => {
+        return new Promise((resolve3, reject) => {
           const earlyReject = (error2) => {
             reject(error2);
           };
@@ -13110,7 +13125,7 @@ var init_protocol = __esm({
               if (!parseResult.success) {
                 reject(parseResult.error);
               } else {
-                resolve2(parseResult.data);
+                resolve3(parseResult.data);
               }
             } catch (error2) {
               reject(error2);
@@ -13371,12 +13386,12 @@ var init_protocol = __esm({
           }
         } catch {
         }
-        return new Promise((resolve2, reject) => {
+        return new Promise((resolve3, reject) => {
           if (signal.aborted) {
             reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
             return;
           }
-          const timeoutId = setTimeout(resolve2, interval);
+          const timeoutId = setTimeout(resolve3, interval);
           signal.addEventListener("abort", () => {
             clearTimeout(timeoutId);
             reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -16403,7 +16418,7 @@ var require_compile = __commonJS({
       const schOrFunc = root2.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve2.call(this, root2, ref);
+      let _sch = resolve3.call(this, root2, ref);
       if (_sch === void 0) {
         const schema = (_a = root2.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -16430,7 +16445,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve2(root2, ref) {
+    function resolve3(root2, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -17061,7 +17076,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve2(baseURI, relativeURI, options) {
+    function resolve3(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -17319,7 +17334,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve2,
+      resolve: resolve3,
       resolveComponent,
       equal,
       serialize,
@@ -21446,7 +21461,7 @@ var init_mcp = __esm({
         let task = createTaskResult.task;
         const pollInterval = task.pollInterval ?? 5e3;
         while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-          await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
+          await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
           const updatedTask = await extra.taskStore.getTask(taskId);
           if (!updatedTask) {
             throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -22040,12 +22055,12 @@ var init_stdio2 = __esm({
         this.onclose?.();
       }
       send(message) {
-        return new Promise((resolve2) => {
+        return new Promise((resolve3) => {
           const json = serializeMessage(message);
           if (this._stdout.write(json)) {
-            resolve2();
+            resolve3();
           } else {
-            this._stdout.once("drain", resolve2);
+            this._stdout.once("drain", resolve3);
           }
         });
       }
@@ -22056,7 +22071,7 @@ var init_stdio2 = __esm({
 // js/graph.js
 import { exec, spawn } from "child_process";
 import { existsSync as existsSync2, readFileSync, renameSync } from "fs";
-import { join as join3, resolve } from "path";
+import { join as join3, resolve as resolve2 } from "path";
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
   try {
@@ -22116,7 +22131,7 @@ var init_graph = __esm({
         console.error("[vicky] no LLM API key in env (GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY / MISTRAL_API_KEY / COHERE_API_KEY). Semantic graph extraction skipped.");
         return { ok: false, reason: "no_backend" };
       }
-      const root2 = resolve(root());
+      const root2 = resolve2(root());
       await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}`, { cwd: root2 });
       const graph = kb_graph();
       if (!existsSync2(graph)) return { ok: false, reason: "no_graph_produced" };
@@ -23009,6 +23024,47 @@ var init_dashboard2 = __esm({
 
 // js/tools/dql.js
 import { basename as basename3 } from "path";
+function docs() {
+  const r = root().replace(/\\/g, "/").replace(/\/+$/, "");
+  const p = (folder) => r === "" || r === "." ? `"${folder}"` : `"${r}/${folder}"`;
+  return `DQL \u2014 Dataview Query Language.
+Reference: https://blacksmithgu.github.io/obsidian-dataview/queries/structure/
+
+Forms:
+  LIST [<expr>] FROM <source> [WHERE ...] [SORT ...] [LIMIT n]
+  TABLE [WITHOUT ID] col1 AS "Header", col2 ... FROM <source> ...
+  TASK FROM <source> ...
+  CALENDAR <date-field> FROM <source>
+
+Sources (paths are relative to the Obsidian vault root; Vicky data lives under VICKY_ROOT="${r}"):
+  ${p("folder")}        pages in folder
+  "a" OR "b"      union
+  "a" AND -"b"    intersection minus
+  #tag            by tag
+  [[Note]]        outlinks of Note
+
+Fields:
+  file.link, file.name, file.folder, file.path
+  file.inlinks, file.outlinks    (use length() for count)
+  file.ctime, file.mtime, file.size
+  <any frontmatter key>          e.g. type, date, tags, priority, status
+
+Functions:
+  length(list), choice(cond, a, b), contains(list, val), date(today),
+  dur("14 days"), regexmatch(pat, str), lower(s), startswith(s, prefix)
+
+Examples:
+  TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks
+  FROM ${p("conclusions")}
+  WHERE length(file.inlinks) > 0
+  SORT length(file.inlinks) DESC LIMIT 20
+
+  LIST FROM ${p("sources")} WHERE contains(tags, "perf")
+
+  TABLE date, priority FROM ${p("pending")}
+  WHERE status = "pending"
+  SORT choice(priority = "high", 0, 1) ASC`;
+}
 function cell2(value) {
   if (value && typeof value === "object" && value.path) return basename3(value.path, ".md");
   if (Array.isArray(value)) return value.map(cell2).join(" ");
@@ -23050,7 +23106,7 @@ function register12(server2) {
   }, async ({ query, format = "markdown" }) => {
     await ensure_init();
     if (!query || query.trim().toLowerCase() === "help") {
-      return { content: [{ type: "text", text: DOCS }] };
+      return { content: [{ type: "text", text: docs() }] };
     }
     try {
       const result = run_dql(query);
@@ -23061,49 +23117,12 @@ function register12(server2) {
     }
   });
 }
-var DOCS;
 var init_dql = __esm({
   "js/tools/dql.js"() {
     init_zod();
     init_dashboard();
     init_init();
-    DOCS = `DQL \u2014 Dataview Query Language.
-Reference: https://blacksmithgu.github.io/obsidian-dataview/queries/structure/
-
-Forms:
-  LIST [<expr>] FROM <source> [WHERE ...] [SORT ...] [LIMIT n]
-  TABLE [WITHOUT ID] col1 AS "Header", col2 ... FROM <source> ...
-  TASK FROM <source> ...
-  CALENDAR <date-field> FROM <source>
-
-Sources:
-  "folder"        pages in folder
-  "a" OR "b"      union
-  "a" AND -"b"    intersection minus
-  #tag            by tag
-  [[Note]]        outlinks of Note
-
-Fields:
-  file.link, file.name, file.folder, file.path
-  file.inlinks, file.outlinks    (use length() for count)
-  file.ctime, file.mtime, file.size
-  <any frontmatter key>          e.g. type, date, tags, priority, status
-
-Functions:
-  length(list), choice(cond, a, b), contains(list, val), date(today),
-  dur("14 days"), regexmatch(pat, str), lower(s), startswith(s, prefix)
-
-Examples:
-  TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks
-  FROM "conclusions"
-  WHERE length(file.inlinks) > 0
-  SORT length(file.inlinks) DESC LIMIT 20
-
-  LIST FROM "sources" WHERE contains(tags, "perf")
-
-  TABLE date, priority FROM "pending"
-  WHERE status = "pending"
-  SORT choice(priority = "high", 0, 1) ASC`;
+    init_fs();
   }
 });
 

@@ -2,8 +2,12 @@ import { z } from 'zod';
 import { basename } from 'path';
 import { run_dql } from '../dashboard.js';
 import { ensure_init } from '../init.js';
+import * as fs from '../fs.js';
 
-const DOCS = `DQL — Dataview Query Language.
+function docs() {
+	const r = fs.root().replace(/\\/g, '/').replace(/\/+$/, '');
+	const p = (folder) => (r === '' || r === '.') ? `"${folder}"` : `"${r}/${folder}"`;
+	return `DQL — Dataview Query Language.
 Reference: https://blacksmithgu.github.io/obsidian-dataview/queries/structure/
 
 Forms:
@@ -12,8 +16,8 @@ Forms:
   TASK FROM <source> ...
   CALENDAR <date-field> FROM <source>
 
-Sources:
-  "folder"        pages in folder
+Sources (paths are relative to the Obsidian vault root; Vicky data lives under VICKY_ROOT="${r}"):
+  ${p('folder')}        pages in folder
   "a" OR "b"      union
   "a" AND -"b"    intersection minus
   #tag            by tag
@@ -31,15 +35,16 @@ Functions:
 
 Examples:
   TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks
-  FROM "conclusions"
+  FROM ${p('conclusions')}
   WHERE length(file.inlinks) > 0
   SORT length(file.inlinks) DESC LIMIT 20
 
-  LIST FROM "sources" WHERE contains(tags, "perf")
+  LIST FROM ${p('sources')} WHERE contains(tags, "perf")
 
-  TABLE date, priority FROM "pending"
+  TABLE date, priority FROM ${p('pending')}
   WHERE status = "pending"
   SORT choice(priority = "high", 0, 1) ASC`;
+}
 
 function cell(value) {
 	if (value && typeof value === 'object' && value.path) return basename(value.path, '.md');
@@ -78,7 +83,7 @@ export function register(server) {
 	}, async ({ query, format = 'markdown' }) => {
 		await ensure_init();
 		if (!query || query.trim().toLowerCase() === 'help') {
-			return { content: [{ type: 'text', text: DOCS }] };
+			return { content: [{ type: 'text', text: docs() }] };
 		}
 		try {
 			const result = run_dql(query);

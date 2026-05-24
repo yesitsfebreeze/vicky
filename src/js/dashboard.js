@@ -19,16 +19,35 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { basename } from 'path';
 import * as fs from './fs.js';
 
-const QUERIES = {
-	counts:  `TABLE WITHOUT ID type AS Type, length(rows) AS Count FROM "." WHERE type GROUP BY type SORT length(rows) DESC`,
-	recent:  `TABLE file.folder AS Folder, type, date, tags FROM "." WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
-	hubs:    `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM "conclusions" OR "sources" WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
-	pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM "pending" WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
-	awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM "sources" WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
-	orphans: `LIST FROM "conclusions" OR "sources" WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
-	stale:   `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM "conclusions" WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
-	tags:    `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM "." FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`,
-};
+// Build DQL FROM-source strings rooted at fs.root().
+// When VICKY_ROOT is unset, root='vicky' and notes live at <vault>/vicky/<folder>.
+// When VICKY_ROOT='.', root='.' and notes live at <vault>/<folder> — emit bare folder names.
+function from_paths() {
+	const r = fs.root().replace(/\\/g, '/').replace(/\/+$/, '');
+	const join_q = (folder) => (r === '' || r === '.') ? `"${folder}"` : `"${r}/${folder}"`;
+	const all = (r === '' || r === '.') ? `"."` : `"${r}"`;
+	return {
+		all,
+		sources:     join_q('sources'),
+		conclusions: join_q('conclusions'),
+		pending:     join_q('pending'),
+		hubs_scope:  `${join_q('conclusions')} OR ${join_q('sources')}`,
+	};
+}
+
+function build_queries() {
+	const p = from_paths();
+	return {
+		counts:  `TABLE WITHOUT ID type AS Type, length(rows) AS Count FROM ${p.all} WHERE type GROUP BY type SORT length(rows) DESC`,
+		recent:  `TABLE file.folder AS Folder, type, date, tags FROM ${p.all} WHERE date AND date(date) >= date(today) - dur(14 days) SORT date DESC LIMIT 25`,
+		hubs:    `TABLE WITHOUT ID file.link AS Node, length(file.inlinks) AS Inlinks, length(file.outlinks) AS Outlinks, type FROM ${p.hubs_scope} WHERE length(file.inlinks) > 0 SORT length(file.inlinks) DESC LIMIT 20`,
+		pending: `TABLE WITHOUT ID file.link AS Question, priority, requested_by, date FROM ${p.pending} WHERE status = "pending" SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC`,
+		awaiting_synthesis: `TABLE WITHOUT ID file.link AS Source, length(file.inlinks) AS Inlinks, date FROM ${p.sources} WHERE length(filter(file.inlinks, (l) => startswith(meta(l).folder, "conclusions"))) = 0 SORT length(file.inlinks) DESC, date DESC LIMIT 25`,
+		orphans: `LIST FROM ${p.hubs_scope} WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0 LIMIT 25`,
+		stale:   `TABLE WITHOUT ID file.link AS Conclusion, length(file.inlinks) AS Inlinks, date FROM ${p.conclusions} WHERE date AND date(date) < date(today) - dur(60 days) AND length(file.inlinks) < 2 SORT date ASC LIMIT 20`,
+		tags:    `TABLE WITHOUT ID tag AS Tag, length(rows) AS Count FROM ${p.all} FLATTEN tags AS tag WHERE tag GROUP BY tag SORT length(rows) DESC LIMIT 30`,
+	};
+}
 
 const EVAL_TIMEOUT_MS = Number(process.env.OBSIDIAN_TIMEOUT_MS) || 10_000;
 
@@ -66,7 +85,7 @@ export function run_dql(sql) {
 
 function run_all() {
 	const out = {};
-	for (const [k, sql] of Object.entries(QUERIES)) {
+	for (const [k, sql] of Object.entries(build_queries())) {
 		try { out[k] = run_dql(sql); }
 		catch (e) { out[k] = { error: e.message }; }
 	}
