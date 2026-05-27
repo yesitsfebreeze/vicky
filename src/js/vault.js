@@ -135,7 +135,8 @@ export function save_note(title, body, {
 		`tags: [${tags.join(', ')}]`,
 	].join('\n')
 		+ frontmatter_links('sources', sources)
-		+ frontmatter_links('related', related);
+		+ frontmatter_links('related', related)
+		+ (type === 'conclusion' ? '\nderived_from: []' : '');
 	const body_with_links = regen_body_sections(body, sources, related);
 	writeFileSync(path, `---\n${frontmatter}\n---\n\n${body_with_links}\n`);
 	return path;

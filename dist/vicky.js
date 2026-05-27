@@ -22349,7 +22349,7 @@ function save_note(title, body, {
     `date: ${date3}`,
     `type: ${type}`,
     `tags: [${tags.join(", ")}]`
-  ].join("\n") + frontmatter_links("sources", sources2) + frontmatter_links("related", related);
+  ].join("\n") + frontmatter_links("sources", sources2) + frontmatter_links("related", related) + (type === "conclusion" ? "\nderived_from: []" : "");
   const body_with_links = regen_body_sections(body, sources2, related);
   writeFileSync2(path, `---
 ${frontmatter}
