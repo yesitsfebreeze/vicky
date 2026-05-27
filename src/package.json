@@ -10,7 +10,8 @@
   "scripts": {
     "build": "node js/build.js",
     "start": "node ../dist/vicky.js",
-    "dashboard": "node ../dist/vicky.js dashboard"
+    "dashboard": "node ../dist/vicky.js dashboard",
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "knowledge-base",
