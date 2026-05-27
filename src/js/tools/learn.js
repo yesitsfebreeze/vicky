@@ -9,6 +9,7 @@ import { save_note, list_pending, read_pending, delete_pending } from '../vault.
 import { ensure_init } from '../init.js';
 import { load_workflow } from '../workflow.js';
 import * as jobs from '../jobs.js';
+import { slugify } from '../slug.js';
 
 function git_mtime(path) {
 	try {
@@ -94,7 +95,7 @@ export function register(server, notify) {
 							tags: ['source'],
 							type: 'source',
 							related: pending_sources,
-							filename_slug: pf.replace(/\.md$/, ''),
+							filename_slug: slugify(pf),
 						});
 						autofill_frontmatter(newSrcPath);
 
