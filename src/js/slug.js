@@ -25,3 +25,36 @@ export function match_prefix(slug, candidate) {
   if (!a || !b) return false;
   return a.startsWith(b) || b.startsWith(a);
 }
+
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+// Walk `dir` recursively, return absolute path of first basename matching
+// `stem` via match_prefix. Exact matches beat prefix matches. Dotdirs and
+// dotfiles are skipped. Returns null if dir missing or no hit.
+export function resolve_slug(stem, dir) {
+  if (!dir || !existsSync(dir)) return null;
+  const target = slugify(stem);
+  if (!target) return null;
+
+  let exact = null;
+  let prefix = null;
+
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries;
+    try { entries = readdirSync(d, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (e.name.startsWith('.')) continue;
+      const full = join(d, e.name);
+      if (e.isDirectory()) { stack.push(full); continue; }
+      if (!e.name.endsWith('.md')) continue;
+      const base = e.name.replace(/\.md$/, '');
+      if (base.toLowerCase() === target.toLowerCase()) { exact = full; }
+      else if (!prefix && match_prefix(target, base)) { prefix = full; }
+    }
+    if (exact) break;
+  }
+  return exact ?? prefix;
+}
