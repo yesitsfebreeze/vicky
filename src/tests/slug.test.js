@@ -50,3 +50,35 @@ test('slugify: collapses literal multi-dash runs', () => {
 test('slugify: strips leading dash', () => {
   assert.equal(slugify('-foo-bar'), 'foo-bar');
 });
+
+import { match_prefix } from '../js/slug.js';
+
+test('match_prefix: exact match', () => {
+  assert.equal(match_prefix('foo-bar', 'foo-bar'), true);
+});
+
+test('match_prefix: slug is prefix of candidate', () => {
+  assert.equal(match_prefix('tracer-coverage-gap', 'tracer-coverage-gap-submit-present'), true);
+});
+
+test('match_prefix: candidate is prefix of slug', () => {
+  assert.equal(match_prefix('tracer-coverage-gap-submit-present', 'tracer-coverage-gap'), true);
+});
+
+test('match_prefix: case-insensitive', () => {
+  assert.equal(match_prefix('Foo-Bar', 'foo-bar-baz'), true);
+});
+
+test('match_prefix: rejects non-prefix substring', () => {
+  assert.equal(match_prefix('bar', 'foo-bar'), false);
+});
+
+test('match_prefix: empty inputs never match', () => {
+  assert.equal(match_prefix('', 'foo'), false);
+  assert.equal(match_prefix('foo', ''), false);
+  assert.equal(match_prefix('', ''), false);
+});
+
+test('match_prefix: strips .md from candidate', () => {
+  assert.equal(match_prefix('foo', 'foo-bar.md'), true);
+});
