@@ -7,6 +7,7 @@ export const SLUG_MAX = 45;
 export function slugify(input) {
   if (input == null) return '';
   let s = String(input).replace(/\.md$/i, '');
+  s = s.replace(/_/g, '-');
   s = s.replace(/[^\w\s-]/g, '');
   s = s.trim().replace(/\s+/g, '-');
   s = s.replace(/-+/g, '-').replace(/^-/, '');
@@ -51,8 +52,8 @@ export function resolve_slug(stem, dir) {
       if (e.isDirectory()) { stack.push(full); continue; }
       if (!e.name.endsWith('.md')) continue;
       const base = e.name.replace(/\.md$/, '');
-      if (base.toLowerCase() === target.toLowerCase()) { exact = full; }
-      else if (!prefix && match_prefix(target, base)) { prefix = full; }
+      if (base.toLowerCase() === target.toLowerCase()) { exact = full; break; }
+      if (!prefix && match_prefix(target, base)) { prefix = full; }
     }
     if (exact) break;
   }

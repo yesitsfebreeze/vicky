@@ -9,7 +9,7 @@ import {
   patch_frontmatter_sources,
   parse_fm_list,
 } from '../vault.js';
-import { resolve_slug, slugify, match_prefix } from '../slug.js';
+import { resolve_slug, slugify } from '../slug.js';
 import { ensure_init } from '../init.js';
 
 function find_conclusion(name) {
@@ -47,7 +47,8 @@ export function register(server) {
 		}
 
 		const new_derived = [...new Set([...existing_derived, ...resolved_moves].map(slugify))];
-		const new_sources = existing_sources.filter(s => !resolved_moves.some(m => match_prefix(m, s)));
+		const absorbed_slugs = new Set(resolved_moves.map(slugify));
+		const new_sources = existing_sources.filter(s => !absorbed_slugs.has(slugify(s)));
 
 		if (dry_run) {
 			return { content: [{ type: 'text', text: JSON.stringify({

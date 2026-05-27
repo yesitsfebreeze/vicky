@@ -24,8 +24,18 @@ export function search_hits(dir, query, limit = 10) {
 			const stem_hit = terms.some(t => match_prefix(t, stem));
 			if (!matched && !stem_hit) continue;
 			const lines = text.split('\n');
-			const idx = lines.findIndex(l => terms.some(t => l.toLowerCase().includes(t)));
-			const snippet = lines.slice(Math.max(0, idx - 1), idx + 5).join('\n').slice(0, 200);
+			// Find end of frontmatter so body search skips YAML
+			let body_start = 0;
+			if (lines[0] === '---') {
+				const fm_end = lines.findIndex((l, i) => i > 0 && l === '---');
+				if (fm_end >= 0) body_start = fm_end + 1;
+			}
+			const body_lines = lines.slice(body_start);
+			const body_idx = body_lines.findIndex(l => terms.some(t => l.toLowerCase().includes(t)));
+			const idx = body_idx < 0 ? -1 : body_start + body_idx;
+			const snippet = idx < 0
+			  ? `(filename match: ${stem})`
+			  : lines.slice(Math.max(0, idx - 1), idx + 5).join('\n').slice(0, 200);
 			const coverage = matched / terms.length;
 			const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
 			const stem_bonus = stem_hit ? 0.2 : 0;

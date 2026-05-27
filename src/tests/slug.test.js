@@ -103,3 +103,23 @@ test('search_hits: filename prefix scores hit even when body lacks term', () => 
   assert.ok(hits[0].note_path.endsWith('tracer-coverage-gap-submit-present.md'));
   rs2(root, { recursive: true });
 });
+test('slugify: underscores normalize to dashes', () => {
+  assert.equal(slugify('foo_bar_baz'), 'foo-bar-baz');
+});
+
+test('slugify: mixed underscores and dashes collapse to single dash', () => {
+  assert.equal(slugify('foo_-_bar'), 'foo-bar');
+});
+
+test('slugify: underscored input matches dashed input', () => {
+  assert.equal(slugify('GRAPH_REPORT'), 'GRAPH-REPORT');
+});
+
+test('search_hits: stem-only hit emits filename-match marker, not frontmatter', () => {
+  const root = ms2(j2(t2(), 'vicky-search5-'));
+  ws2(j2(root, 'neural-network-arch.md'), '---\ntitle: neural-network-arch\ndate: 2026-01-01\ntags: [ml]\n---\n\nunrelated body content\n');
+  const hits = search_hits(root, 'neural-network', 5);
+  assert.ok(hits.length >= 1);
+  assert.ok(hits[0].snippet.startsWith('(filename match:'), `got snippet: ${hits[0].snippet}`);
+  rs2(root, { recursive: true });
+});

@@ -21,7 +21,7 @@ function list_md_files(dir) {
 	return files;
 }
 
-const SECTION_NODES = new Set(['Research', 'Sources', 'Related', 'Graph-Context', 'Graph-Traversal', 'GRAPH_REPORT']);
+const SECTION_NODES = new Set(['Research', 'Sources', 'Related', 'Graph-Context', 'Graph-Traversal', 'GRAPH-REPORT']);
 
 function parse_related(raw, selfName) {
 	const self_slug = slugify(selfName);
