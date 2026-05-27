@@ -22225,19 +22225,80 @@ var init_graph = __esm({
   }
 });
 
+// js/slug.js
+import { existsSync as existsSync3, readdirSync as readdirSync2 } from "node:fs";
+import { join as join4 } from "node:path";
+function slugify(input) {
+  if (input == null) return "";
+  let s = String(input).replace(/\.md$/i, "");
+  s = s.replace(/[^\w\s-]/g, "");
+  s = s.trim().replace(/\s+/g, "-");
+  s = s.replace(/-+/g, "-").replace(/^-/, "");
+  if (s.length > SLUG_MAX) s = s.slice(0, SLUG_MAX);
+  s = s.replace(/-+$/, "");
+  return s;
+}
+function match_prefix(slug, candidate) {
+  if (!slug || !candidate) return false;
+  const a = String(slug).replace(/\.md$/i, "").toLowerCase();
+  const b = String(candidate).replace(/\.md$/i, "").toLowerCase();
+  if (!a || !b) return false;
+  return a.startsWith(b) || b.startsWith(a);
+}
+function resolve_slug(stem, dir) {
+  if (!dir || !existsSync3(dir)) return null;
+  const target = slugify(stem);
+  if (!target) return null;
+  let exact = null;
+  let prefix = null;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries;
+    try {
+      entries = readdirSync2(d, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = join4(d, e.name);
+      if (e.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!e.name.endsWith(".md")) continue;
+      const base = e.name.replace(/\.md$/, "");
+      if (base.toLowerCase() === target.toLowerCase()) {
+        exact = full;
+      } else if (!prefix && match_prefix(target, base)) {
+        prefix = full;
+      }
+    }
+    if (exact) break;
+  }
+  return exact ?? prefix;
+}
+var SLUG_MAX;
+var init_slug = __esm({
+  "js/slug.js"() {
+    SLUG_MAX = 45;
+  }
+});
+
 // js/vault.js
-import { existsSync as existsSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, mkdirSync as mkdirSync2, unlinkSync, renameSync as renameSync2 } from "fs";
-import { join as join4, dirname as dirname2 } from "path";
+import { existsSync as existsSync4, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync3, mkdirSync as mkdirSync2, unlinkSync, renameSync as renameSync2 } from "fs";
+import { join as join5, dirname as dirname2 } from "path";
 function search_hits(dir, query, limit = 10) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
   const root2 = root();
   const hits = [];
   function walk(d) {
-    if (!existsSync3(d)) return;
-    for (const e of readdirSync2(d, { withFileTypes: true })) {
+    if (!existsSync4(d)) return;
+    for (const e of readdirSync3(d, { withFileTypes: true })) {
       if (e.name.startsWith(".")) continue;
-      const full = join4(d, e.name);
+      const full = join5(d, e.name);
       if (e.isDirectory()) {
         walk(full);
         continue;
@@ -22246,13 +22307,16 @@ function search_hits(dir, query, limit = 10) {
       const text = readFileSync2(full, "utf8");
       const lower = text.toLowerCase();
       const matched = terms.filter((t) => lower.includes(t)).length;
-      if (!matched) continue;
+      const stem = e.name.replace(/\.md$/, "");
+      const stem_hit = terms.some((t) => match_prefix(t, stem));
+      if (!matched && !stem_hit) continue;
       const lines = text.split("\n");
       const idx = lines.findIndex((l) => terms.some((t) => l.toLowerCase().includes(t)));
       const snippet = lines.slice(Math.max(0, idx - 1), idx + 5).join("\n").slice(0, 200);
       const coverage = matched / terms.length;
       const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
-      const score = +(coverage * 0.6 + position * 0.4).toFixed(4);
+      const stem_bonus = stem_hit ? 0.2 : 0;
+      const score = +(coverage * 0.5 + position * 0.3 + stem_bonus).toFixed(4);
       const rel = full.replace(/\\/g, "/");
       const note_path = rel.startsWith(root2.replace(/\\/g, "/") + "/") ? rel : `${root2}/${rel}`.replace(/\\/g, "/");
       hits.push({ note_path, score, inlinks: 0, snippet });
@@ -22276,7 +22340,7 @@ function frontmatter_links(key, items) {
   if (!items?.length) return "";
   return `
 ${key}:
-${items.map((t) => `  - "[[${slug_ref(t)}]]"`).join("\n")}`;
+${items.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`;
 }
 function gen_source_id(dir = sources()) {
   const d = /* @__PURE__ */ new Date();
@@ -22288,7 +22352,7 @@ function gen_source_id(dir = sources()) {
   for (let i = 0; i < 100; i++) {
     const hex = Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
     const id = `${stamp}-${hex}`;
-    if (!existsSync3(join4(dir, `${id}.md`))) return id;
+    if (!existsSync4(join5(dir, `${id}.md`))) return id;
   }
   throw new Error(`gen_source_id: 100 collisions in ${dir}`);
 }
@@ -22332,16 +22396,16 @@ function save_note(title, body, {
   mkdirSync2(dir, { recursive: true });
   let path, title_field;
   if (filename_slug) {
-    const safe = slug_ref(filename_slug);
-    path = join4(dir, `${safe}.md`);
+    const safe = slugify(filename_slug);
+    path = join5(dir, `${safe}.md`);
     title_field = yaml_title(title);
   } else if (id_filename) {
     const id = gen_source_id(dir);
-    path = join4(dir, `${id}.md`);
+    path = join5(dir, `${id}.md`);
     title_field = yaml_title(title);
   } else {
     const safe = slugify(title);
-    path = join4(dir, `${safe}.md`);
+    path = join5(dir, `${safe}.md`);
     title_field = safe;
   }
   const frontmatter = [
@@ -22363,8 +22427,8 @@ function enqueue_research(question, { context = "", requested_by = "", priority 
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const safe = slugify(question);
   mkdirSync2(pending(), { recursive: true });
-  const path = join4(pending(), `${safe}.md`);
-  if (existsSync3(path)) return path;
+  const path = join5(pending(), `${safe}.md`);
+  if (existsSync4(path)) return path;
   const frontmatter = [
     `title: ${safe}`,
     `date: ${date3}`,
@@ -22388,11 +22452,11 @@ ${context}
   return path;
 }
 function list_pending() {
-  if (!existsSync3(pending())) return [];
-  return readdirSync2(pending()).filter((f) => f.endsWith(".md"));
+  if (!existsSync4(pending())) return [];
+  return readdirSync3(pending()).filter((f) => f.endsWith(".md"));
 }
 function read_pending(file) {
-  const fp = join4(pending(), file);
+  const fp = join5(pending(), file);
   const text = readFileSync2(fp, "utf8");
   const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
   const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
@@ -22408,8 +22472,8 @@ function read_pending(file) {
   };
 }
 function delete_pending(file) {
-  const fp = join4(pending(), file);
-  if (existsSync3(fp)) unlinkSync(fp);
+  const fp = join5(pending(), file);
+  if (existsSync4(fp)) unlinkSync(fp);
 }
 function patch_frontmatter_sources(filePath, sources2) {
   patch_fm_list(
@@ -22417,7 +22481,7 @@ function patch_frontmatter_sources(filePath, sources2) {
     "sources",
     sources2,
     (ss) => `sources:
-${ss.map((s) => `  - "[[${slug_ref(s)}]]"`).join("\n")}`
+${ss.map((s) => `  - "[[${slugify(s)}]]"`).join("\n")}`
   );
 }
 function patch_frontmatter_related(filePath, links) {
@@ -22426,37 +22490,18 @@ function patch_frontmatter_related(filePath, links) {
     "related",
     links,
     (ll) => `related:
-${ll.map((t) => `  - "[[${slug_ref(t)}]]"`).join("\n")}`
+${ll.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`
   );
 }
 function find_source(name) {
-  const slug = name.replace(/\.md$/, "");
-  const target = `${slug}.md`;
-  const root2 = sources();
-  const absorbed_root = absorbed();
-  const stack = [root2];
-  while (stack.length) {
-    const d = stack.pop();
-    if (!existsSync3(d)) continue;
-    if (d === absorbed_root) continue;
-    for (const e of readdirSync2(d, { withFileTypes: true })) {
-      if (e.name.startsWith(".")) continue;
-      const full = join4(d, e.name);
-      if (e.isDirectory()) {
-        stack.push(full);
-        continue;
-      }
-      if (e.name === target) return full;
-    }
-  }
-  return null;
+  return resolve_slug(name, sources());
 }
 function absorb_source(name) {
   const slug = name.replace(/\.md$/, "");
   const from = find_source(slug);
   if (!from) throw new Error(`source not found: ${slug}`);
   const rel = from.slice(sources().length).replace(/^[\\/]+/, "");
-  const to = join4(absorbed(), rel);
+  const to = join5(absorbed(), rel);
   mkdirSync2(dirname2(to), { recursive: true });
   renameSync2(from, to);
   return to;
@@ -22501,20 +22546,19 @@ function patch_frontmatter_derived_from(filePath, slugs) {
     "derived_from",
     slugs,
     (ss) => `derived_from:
-${ss.map((s) => `  - ${slug_ref(s)}`).join("\n")}`
+${ss.map((s) => `  - ${slugify(s)}`).join("\n")}`
   );
 }
-var slugify, slug_ref;
 var init_vault = __esm({
   "js/vault.js"() {
     init_fs();
-    slugify = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
-    slug_ref = (s) => String(s).replace(/\.md$/, "").replace(/[^\w\s.-]/g, "").trim().replace(/\s+/g, "-");
+    init_slug();
+    init_slug();
   }
 });
 
 // js/workflow.js
-import { existsSync as existsSync4, readFileSync as readFileSync3, statSync } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync3, statSync } from "fs";
 function parse_frontmatter(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
@@ -22588,7 +22632,7 @@ function parse_section(text, name) {
 }
 function load_workflow() {
   const path = workflow_md();
-  if (!existsSync4(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
+  if (!existsSync5(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
   try {
     const { mtimeMs } = statSync(path);
     if (cache && mtimeMs === cache_mtime) return cache;
@@ -22754,9 +22798,8 @@ function register2(server2, notify2) {
       const should = auto_research && should_auto_enqueue();
       if (should) {
         const pending2 = list_pending();
-        already_pending = pending2.some(
-          (f) => f.toLowerCase().includes(question.slice(0, 20).toLowerCase().replace(/[^\w]/g, ""))
-        );
+        const q_slug = slugify(question);
+        already_pending = pending2.some((f) => match_prefix(q_slug, f));
         if (!already_pending) {
           enqueue_research(question, { requested_by: workflow });
           notify2("info", `vicky: auto-enqueued research for "${question}" (workflow: ${workflow})`);
@@ -22785,12 +22828,13 @@ var init_research_gap = __esm({
     init_vault();
     init_init();
     init_workflow();
+    init_slug();
     TOP_K2 = 10;
   }
 });
 
 // js/tools/remember.js
-import { join as join5, basename as basename3 } from "path";
+import { join as join6, basename as basename3 } from "path";
 function register3(server2) {
   server2.registerTool("remember", {
     description: "Save key points or findings into the source vault. Conclusions are not auto-spawned \u2014 call `conclude` once you have a synthesised takeaway.",
@@ -22807,7 +22851,7 @@ function register3(server2) {
     if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
       return { content: [{ type: "text", text: "remember writes to vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
     }
-    const dir = folder ? join5(sources(), folder) : sources();
+    const dir = folder ? join6(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related, id_filename: true });
     const slug = basename3(path).replace(/\.md$/, "");
@@ -22825,7 +22869,7 @@ var init_remember = __esm({
 });
 
 // js/tools/conclude.js
-import { join as join6 } from "path";
+import { join as join7 } from "path";
 function register4(server2) {
   server2.registerTool("conclude", {
     description: "Save a derived conclusion into vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
@@ -22839,7 +22883,7 @@ function register4(server2) {
     }
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
-    const dir = folder ? join6(conclusions(), folder) : conclusions();
+    const dir = folder ? join7(conclusions(), folder) : conclusions();
     const merged = Array.from(/* @__PURE__ */ new Set(["conclusion", ...tags.filter((t) => t !== "research" && t !== "pending")]));
     const path = save_note(title, content, { dir, tags: merged, type: "conclusion", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
@@ -22855,15 +22899,15 @@ var init_conclude = __esm({
 });
 
 // js/link.js
-import { existsSync as existsSync5, readFileSync as readFileSync4, readdirSync as readdirSync3 } from "fs";
-import { join as join7 } from "path";
+import { existsSync as existsSync6, readFileSync as readFileSync4, readdirSync as readdirSync4 } from "fs";
+import { join as join8 } from "path";
 function list_md_files(dir) {
-  if (!existsSync5(dir)) return [];
+  if (!existsSync6(dir)) return [];
   const files = [];
   function walk(d) {
-    for (const e of readdirSync3(d, { withFileTypes: true })) {
+    for (const e of readdirSync4(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join7(d, e.name);
+      const full = join8(d, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.name.endsWith(".md")) files.push({ full, name: e.name });
     }
@@ -22872,7 +22916,8 @@ function list_md_files(dir) {
   return files;
 }
 function parse_related(raw, selfName) {
-  return [...(raw ?? "").matchAll(/^NODE\s+(.+?)\s+\[/gm)].map((m) => m[1].replace(/\.md$/, "").trim()).filter((t) => t !== selfName && !SECTION_NODES.has(t) && !t.startsWith("code:") && !t.startsWith("Graph"));
+  const self_slug = slugify(selfName);
+  return [...(raw ?? "").matchAll(/^NODE\s+(.+?)\s+\[/gm)].map((m) => slugify(m[1])).filter((t) => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith("code:") && !t.startsWith("Graph"));
 }
 async function relink_dir(dir, graphPath, notify2) {
   const files = list_md_files(dir);
@@ -22895,8 +22940,9 @@ var init_link = __esm({
   "js/link.js"() {
     init_vault();
     init_graph();
+    init_slug();
     BATCH = 10;
-    SECTION_NODES = /* @__PURE__ */ new Set(["Research", "Sources", "Related", "Graph Context", "Graph Traversal", "GRAPH_REPORT"]);
+    SECTION_NODES = /* @__PURE__ */ new Set(["Research", "Sources", "Related", "Graph-Context", "Graph-Traversal", "GRAPH_REPORT"]);
   }
 });
 
@@ -22959,10 +23005,10 @@ var init_jobs = __esm({
 });
 
 // js/tools/relink.js
-import { readdirSync as readdirSync4 } from "fs";
+import { readdirSync as readdirSync5 } from "fs";
 function est_relink_seconds() {
   try {
-    const n = readdirSync4(conclusions()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync5(conclusions()).filter((f) => f.endsWith(".md")).length;
     return Math.max(10, Math.min(600, Math.round(n * 0.3)));
   } catch {
     return 10;
@@ -23021,7 +23067,7 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { existsSync as existsSync6, readFileSync as readFileSync5, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync5 } from "fs";
+import { existsSync as existsSync7, readFileSync as readFileSync5, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync6 } from "fs";
 import { execSync } from "child_process";
 function git_mtime(path) {
   try {
@@ -23036,7 +23082,7 @@ function git_mtime(path) {
   }
 }
 function autofill_frontmatter(path) {
-  if (!existsSync6(path)) return false;
+  if (!existsSync7(path)) return false;
   let text = readFileSync5(path, "utf8");
   const fm_match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   let body_block = fm_match ? fm_match[1] : "";
@@ -23063,7 +23109,7 @@ ${additions.join("\n")}
 }
 function est_learn_seconds() {
   try {
-    const n = readdirSync5(pending()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync6(pending()).filter((f) => f.endsWith(".md")).length;
     return Math.max(5, Math.min(300, Math.round(n * 0.5)));
   } catch {
     return 5;
@@ -23120,7 +23166,7 @@ ${ctx.trim()}
               tags: ["source"],
               type: "source",
               related: pending_sources,
-              filename_slug: pf.replace(/\.md$/, "")
+              filename_slug: slugify(pf)
             });
             autofill_frontmatter(newSrcPath);
             delete_pending(pf);
@@ -23167,12 +23213,13 @@ var init_learn = __esm({
     init_init();
     init_workflow();
     init_jobs();
+    init_slug();
   }
 });
 
 // js/tools/enqueue.js
-import { existsSync as existsSync7 } from "fs";
-import { join as join8 } from "path";
+import { existsSync as existsSync8 } from "fs";
+import { join as join9 } from "path";
 function validate_frontmatter(fm) {
   const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
   if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
@@ -23208,8 +23255,8 @@ function register7(server2) {
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
     const slug = slugify(question);
-    const path = join8(pending(), `${slug}.md`);
-    if (existsSync7(path)) {
+    const path = join9(pending(), `${slug}.md`);
+    if (existsSync8(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
     }
     const out = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
@@ -23427,22 +23474,10 @@ var init_job_status = __esm({
 });
 
 // js/tools/crystalize.js
-import { existsSync as existsSync8, readFileSync as readFileSync6, readdirSync as readdirSync6 } from "fs";
-import { join as join9 } from "path";
+import { readFileSync as readFileSync6 } from "fs";
+import { basename as basename5 } from "path";
 function find_conclusion(name) {
-  const slug = name.replace(/\.md$/, "");
-  const stack = [conclusions()];
-  while (stack.length) {
-    const d = stack.pop();
-    if (!existsSync8(d)) continue;
-    for (const e of readdirSync6(d, { withFileTypes: true })) {
-      if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join9(d, e.name);
-      if (e.isDirectory()) stack.push(full);
-      else if (e.name === `${slug}.md`) return full;
-    }
-  }
-  return null;
+  return resolve_slug(name, conclusions());
 }
 function register12(server2) {
   server2.registerTool("crystalize", {
@@ -23462,34 +23497,38 @@ function register12(server2) {
     const existing_sources = parse_fm_list(concContent, "sources");
     const existing_derived = parse_fm_list(concContent, "derived_from");
     const moves = [];
+    const resolved_moves = [];
     const missing = [];
     for (const name of absorb) {
-      const slug = name.replace(/\.md$/, "");
+      const slug = slugify(name);
       const srcPath = find_source(slug);
       if (!srcPath) {
         missing.push(slug);
         continue;
       }
       moves.push(slug);
+      resolved_moves.push(basename5(srcPath, ".md"));
     }
-    const new_derived = [.../* @__PURE__ */ new Set([...existing_derived, ...moves])];
-    const new_sources = existing_sources.filter((s) => !moves.includes(s));
+    const new_derived = [...new Set([...existing_derived, ...resolved_moves].map(slugify))];
+    const new_sources = existing_sources.filter((s) => !resolved_moves.some((m) => match_prefix(m, s)));
     if (dry_run) {
       return { content: [{ type: "text", text: JSON.stringify({
         conclusion: concPath,
-        would_absorb: moves,
+        would_absorb_input: moves,
+        would_absorb_resolved: resolved_moves,
         missing,
         new_sources,
         new_derived_from: new_derived
       }, null, 2) }] };
     }
-    for (const slug of moves) absorb_source(slug);
+    for (const resolved of resolved_moves) absorb_source(resolved);
     patch_frontmatter_sources(concPath, new_sources);
     patch_frontmatter_derived_from(concPath, new_derived);
     return { content: [{
       type: "text",
-      text: `Crystalized ${moves.length} source(s) into ${conclusion}.
-Absorbed: ${moves.join(", ") || "none"}
+      text: `Crystalized ${resolved_moves.length} source(s) into ${conclusion}.
+Absorbed (resolved): ${resolved_moves.join(", ") || "none"}
+Input slugs: ${moves.join(", ") || "none"}
 Missing: ${missing.join(", ") || "none"}
 Run /vicky:learn to rebuild graph.`
     }] };
@@ -23500,6 +23539,7 @@ var init_crystalize = __esm({
     init_zod();
     init_fs();
     init_vault();
+    init_slug();
     init_init();
   }
 });
