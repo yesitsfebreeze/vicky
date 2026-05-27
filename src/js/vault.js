@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync, renameSync } from 'fs';
 import { join, dirname } from 'path';
 import * as fs from './fs.js';
+import { slugify, resolve_slug, match_prefix } from './slug.js';
+export { slugify, resolve_slug, match_prefix } from './slug.js';
 
 
 export function search_hits(dir, query, limit = 10) {
@@ -18,13 +20,16 @@ export function search_hits(dir, query, limit = 10) {
 			const text = readFileSync(full, 'utf8');
 			const lower = text.toLowerCase();
 			const matched = terms.filter(t => lower.includes(t)).length;
-			if (!matched) continue;
+			const stem = e.name.replace(/\.md$/, '');
+			const stem_hit = terms.some(t => match_prefix(t, stem));
+			if (!matched && !stem_hit) continue;
 			const lines = text.split('\n');
 			const idx = lines.findIndex(l => terms.some(t => l.toLowerCase().includes(t)));
 			const snippet = lines.slice(Math.max(0, idx - 1), idx + 5).join('\n').slice(0, 200);
 			const coverage = matched / terms.length;
 			const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
-			const score = +(coverage * 0.6 + position * 0.4).toFixed(4);
+			const stem_bonus = stem_hit ? 0.2 : 0;
+			const score = +(coverage * 0.5 + position * 0.3 + stem_bonus).toFixed(4);
 			const rel = full.replace(/\\/g, '/');
 			const note_path = rel.startsWith(root.replace(/\\/g, '/') + '/') ? rel : `${root}/${rel}`.replace(/\\/g, '/');
 			hits.push({ note_path, score, inlinks: 0, snippet });
@@ -34,15 +39,6 @@ export function search_hits(dir, query, limit = 10) {
 	hits.sort((a, b) => b.score - a.score);
 	return hits.slice(0, limit);
 }
-
-// Slugify a raw title into a filesystem-safe filename. 60-char cap balances
-// readability against Windows MAX_PATH. Used ONLY when minting a new file.
-export const slugify = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
-
-// Validate an already-slugified reference for wikilink emission. Strips
-// dangerous chars but preserves length — input is a slug from a prior
-// save_note/enqueue call; re-truncating breaks graph reachability.
-const slug_ref = s => String(s).replace(/\.md$/, '').replace(/[^\w\s.-]/g, '').trim().replace(/\s+/g, '-');
 
 function strip_section(body, heading) {
 	const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, 'g');
@@ -58,7 +54,7 @@ function regen_body_sections(body, sources, related) {
 
 function frontmatter_links(key, items) {
 	if (!items?.length) return '';
-	return `\n${key}:\n${items.map(t => `  - "[[${slug_ref(t)}]]"`).join('\n')}`;
+	return `\n${key}:\n${items.map(t => `  - "[[${slugify(t)}]]"`).join('\n')}`;
 }
 
 export function gen_source_id(dir = fs.sources()) {
@@ -116,7 +112,7 @@ export function save_note(title, body, {
 	mkdirSync(dir, { recursive: true });
 	let path, title_field;
 	if (filename_slug) {
-		const safe = slug_ref(filename_slug);
+		const safe = slugify(filename_slug);
 		path = join(dir, `${safe}.md`);
 		title_field = yaml_title(title);
 	} else if (id_filename) {
@@ -191,41 +187,24 @@ export function delete_pending(file) {
 
 export function patch_frontmatter_sources(filePath, sources) {
 	patch_fm_list(filePath, 'sources', sources, ss =>
-		`sources:\n${ss.map(s => `  - "[[${slug_ref(s)}]]"`).join('\n')}`
+		`sources:\n${ss.map(s => `  - "[[${slugify(s)}]]"`).join('\n')}`
 	);
 }
 
 export function patch_frontmatter_related(filePath, links) {
 	patch_fm_list(filePath, 'related', links, ll =>
-		`related:\n${ll.map(t => `  - "[[${slug_ref(t)}]]"`).join('\n')}`
+		`related:\n${ll.map(t => `  - "[[${slugify(t)}]]"`).join('\n')}`
 	);
 }
 
 
 // --- crystalize support ---
 
-// Recursive walk under sources/, returns full path or null.
-// Excludes .absorbed/ (already-absorbed sources must not collide with live ones).
+// Recursive walk under sources/, returns full path or null. Excludes
+// .absorbed/. Uses resolve_slug so legacy 60-char filenames resolve from
+// 45-char wikilinks and vice versa.
 export function find_source(name) {
-	const slug = name.replace(/\.md$/, '');
-	const target = `${slug}.md`;
-	const root = fs.sources();
-	const absorbed_root = fs.absorbed();
-	const stack = [root];
-	while (stack.length) {
-		const d = stack.pop();
-		if (!existsSync(d)) continue;
-		// Skip the .absorbed/ subtree entirely.
-		if (d === absorbed_root) continue;
-		for (const e of readdirSync(d, { withFileTypes: true })) {
-			// Skip dotfiles + dotdirs (covers .absorbed at every depth).
-			if (e.name.startsWith('.')) continue;
-			const full = join(d, e.name);
-			if (e.isDirectory()) { stack.push(full); continue; }
-			if (e.name === target) return full;
-		}
-	}
-	return null;
+  return resolve_slug(name, fs.sources());
 }
 
 export function absorb_source(name) {
@@ -274,6 +253,6 @@ export function parse_fm_list(content, key) {
 
 export function patch_frontmatter_derived_from(filePath, slugs) {
 	patch_fm_list(filePath, 'derived_from', slugs, ss =>
-		`derived_from:\n${ss.map(s => `  - ${slug_ref(s)}`).join('\n')}`
+		`derived_from:\n${ss.map(s => `  - ${slugify(s)}`).join('\n')}`
 	);
 }
