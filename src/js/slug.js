@@ -9,7 +9,9 @@ export function slugify(input) {
   let s = String(input).replace(/\.md$/i, '');
   s = s.replace(/[^\w\s-]/g, '');
   s = s.trim().replace(/\s+/g, '-');
+  s = s.replace(/-+/g, '-').replace(/^-/, '');
   if (s.length > SLUG_MAX) s = s.slice(0, SLUG_MAX);
   s = s.replace(/-+$/, '');
   return s;
 }
+

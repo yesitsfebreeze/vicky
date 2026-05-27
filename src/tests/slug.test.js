@@ -38,3 +38,15 @@ test('slugify: no trailing dash after dash-boundary truncation', () => {
   const result = slugify('a'.repeat(44) + ' b');
   assert.ok(!result.endsWith('-'), `got "${result}"`);
 });
+
+test('slugify: collapses consecutive dashes from mixed input', () => {
+  assert.equal(slugify('foo bar - baz'), 'foo-bar-baz');
+});
+
+test('slugify: collapses literal multi-dash runs', () => {
+  assert.equal(slugify('foo---bar'), 'foo-bar');
+});
+
+test('slugify: strips leading dash', () => {
+  assert.equal(slugify('-foo-bar'), 'foo-bar');
+});
