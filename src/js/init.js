@@ -2,9 +2,10 @@
 
 /**
  * Vault bootstrap. Creates the vicky/ directory tree and scaffolds the
- * Obsidian preset on first call. Idempotent — never overwrites existing
- * files. Subsequent calls return cached banner instructions without
- * touching the filesystem.
+ * Obsidian preset on first call. Idempotent for user content — never
+ * overwrites Dashboard.md, WORKFLOW.md, or anything under vicky/. Always
+ * force-writes .obsidian/ config so Obsidian-created stubs (empty
+ * community-plugins.json on first vault open) cannot block scaffold delivery.
  */
 
 import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from 'fs';
@@ -26,14 +27,14 @@ const GRAPHIFYIGNORE = [
 	'',
 ].join('\n');
 
-function copy_tree(source, destination) {
+function copy_tree(source, destination, { overwrite = false } = {}) {
 	if (!existsSync(source)) return;
 	mkdirSync(destination, { recursive: true });
 	for (const entry of readdirSync(source, { withFileTypes: true })) {
 		const from = join(source, entry.name);
 		const to   = join(destination, entry.name);
-		if (entry.isDirectory()) copy_tree(from, to);
-		else if (entry.isFile() && !existsSync(to)) copyFileSync(from, to);
+		if (entry.isDirectory()) copy_tree(from, to, { overwrite });
+		else if (entry.isFile() && (overwrite || !existsSync(to))) copyFileSync(from, to);
 	}
 }
 
@@ -58,7 +59,16 @@ export async function init() {
 	for (const directory of [fs.sources(), fs.conclusions()]) {
 		if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
 	}
-	copy_tree(fs.template_dir(), '.');
+	// Scaffold root contains two top-level entries:
+	//   .obsidian/  → force-overwrite (Obsidian writes empty stubs on first vault open
+	//                 that would otherwise block scaffold delivery)
+	//   vicky/      → skip-if-exists (user content; never clobber)
+	for (const entry of readdirSync(fs.template_dir(), { withFileTypes: true })) {
+		const from = join(fs.template_dir(), entry.name);
+		const overwrite = entry.name === '.obsidian';
+		if (entry.isDirectory()) copy_tree(from, entry.name, { overwrite });
+		else if (entry.isFile() && (overwrite || !existsSync(entry.name))) copyFileSync(from, entry.name);
+	}
 	const ignore = fs.graphifyignore();
 	if (!existsSync(ignore)) writeFileSync(ignore, GRAPHIFYIGNORE);
 	initialized = true;

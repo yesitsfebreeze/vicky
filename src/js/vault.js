@@ -35,7 +35,14 @@ export function search_hits(dir, query, limit = 10) {
 	return hits.slice(0, limit);
 }
 
-const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 45).replace(/\s+/g, '-');
+// Slugify a raw title into a filesystem-safe filename. 60-char cap balances
+// readability against Windows MAX_PATH. Used ONLY when minting a new file.
+export const slugify = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
+
+// Validate an already-slugified reference for wikilink emission. Strips
+// dangerous chars but preserves length — input is a slug from a prior
+// save_note/enqueue call; re-truncating breaks graph reachability.
+const slug_ref = s => String(s).replace(/\.md$/, '').replace(/[^\w\s.-]/g, '').trim().replace(/\s+/g, '-');
 
 function strip_section(body, heading) {
 	const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, 'g');
@@ -51,7 +58,7 @@ function regen_body_sections(body, sources, related) {
 
 function frontmatter_links(key, items) {
 	if (!items?.length) return '';
-	return `\n${key}:\n${items.map(t => `  - "[[${safe_name(t)}]]"`).join('\n')}`;
+	return `\n${key}:\n${items.map(t => `  - "[[${slug_ref(t)}]]"`).join('\n')}`;
 }
 
 export function gen_source_id(dir = fs.sources()) {
@@ -74,16 +81,50 @@ function yaml_title(title) {
 	return title;
 }
 
-export function save_note(title, body, { dir = fs.sources(), tags = [], type = 'source', sources = [], related = [], id_filename = false } = {}) {
+// Patch any existing block-or-inline YAML key (`key: [...]`, `key: ""`,
+// `key:\n  - x`) out of the frontmatter. Matches `key:` + same-line content
+// + any indented continuation lines. Replacement appended by caller.
+function strip_fm_key(fmBody, key) {
+	const re = new RegExp(`^${key}:[^\\n]*(?:\\n[ \\t]+[^\\n]*)*`, 'm');
+	return fmBody.replace(re, '').replace(/\n{2,}/g, '\n').trimEnd();
+}
+
+function patch_fm_list(filePath, key, items, formatter) {
+	let content = readFileSync(filePath, 'utf8');
+	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+	const value = items.length ? formatter(items) : '';
+	if (fm) {
+		let body = strip_fm_key(fm[1], key);
+		if (value) body += '\n' + value;
+		content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${body.trim()}\n---`);
+	} else if (value) {
+		content = `---\n${value}\n---\n\n` + content;
+	}
+	writeFileSync(filePath, content);
+}
+
+export function save_note(title, body, {
+	dir = fs.sources(),
+	tags = [],
+	type = 'source',
+	sources = [],
+	related = [],
+	id_filename = false,
+	filename_slug = null,
+} = {}) {
 	const date = new Date().toISOString().split('T')[0];
 	mkdirSync(dir, { recursive: true });
 	let path, title_field;
-	if (id_filename) {
+	if (filename_slug) {
+		const safe = slug_ref(filename_slug);
+		path = join(dir, `${safe}.md`);
+		title_field = yaml_title(title);
+	} else if (id_filename) {
 		const id = gen_source_id(dir);
 		path = join(dir, `${id}.md`);
 		title_field = yaml_title(title);
 	} else {
-		const safe = safe_name(title);
+		const safe = slugify(title);
 		path = join(dir, `${safe}.md`);
 		title_field = safe;
 	}
@@ -102,7 +143,7 @@ export function save_note(title, body, { dir = fs.sources(), tags = [], type = '
 
 export function enqueue_research(question, { context = '', requested_by = '', priority = 'med', sources = [] } = {}) {
 	const date = new Date().toISOString().split('T')[0];
-	const safe = safe_name(question);
+	const safe = slugify(question);
 	mkdirSync(fs.pending(), { recursive: true });
 	const path = join(fs.pending(), `${safe}.md`);
 	if (existsSync(path)) return path;
@@ -135,6 +176,7 @@ export function read_pending(file) {
 	const body_sources = s ? [...s[1].matchAll(/\[\[([^\]|]+)\]\]/g)].map(m => m[1].trim()) : [];
 	return {
 		path: fp,
+		slug: file.replace(/\.md$/, ''),
 		question: (q ? q[1] : file.replace(/\.md$/, '')).trim(),
 		context: (c ? c[1] : '').trim(),
 		sources: [...new Set([...fm_sources, ...body_sources])],
@@ -147,36 +189,15 @@ export function delete_pending(file) {
 }
 
 export function patch_frontmatter_sources(filePath, sources) {
-	let content = readFileSync(filePath, 'utf8');
-	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-	const value = sources.length
-		? `sources:\n${sources.map(s => `  - "[[${safe_name(s)}]]"`).join('\n')}`
-		: '';
-	if (fm) {
-		let body = fm[1].replace(/^sources:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();
-		if (value) body += '\n' + value;
-		content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${body.trim()}\n---`);
-	} else {
-		if (value) content = `---\n${value}\n---\n\n` + content;
-	}
-	writeFileSync(filePath, content);
+	patch_fm_list(filePath, 'sources', sources, ss =>
+		`sources:\n${ss.map(s => `  - "[[${slug_ref(s)}]]"`).join('\n')}`
+	);
 }
 
 export function patch_frontmatter_related(filePath, links) {
-	let content = readFileSync(filePath, 'utf8');
-	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-	const value = links.length
-		? `related:\n${links.map(t => `  - "[[${safe_name(t)}]]"`).join('\n')}`
-		: '';
-	if (fm) {
-		// Remove existing related: block (key + all indented list lines below it)
-		let body = fm[1].replace(/^related:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();
-		if (value) body += '\n' + value;
-		content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${body.trim()}\n---`);
-	} else {
-		if (value) content = `---\n${value}\n---\n\n` + content;
-	}
-	writeFileSync(filePath, content);
+	patch_fm_list(filePath, 'related', links, ll =>
+		`related:\n${ll.map(t => `  - "[[${slug_ref(t)}]]"`).join('\n')}`
+	);
 }
 
 
@@ -225,7 +246,22 @@ export function parse_fm_list(content, key) {
 	const out = [];
 	let in_key = false;
 	for (const line of lines) {
+		// Block form: `key:` on its own line (no inline value)
 		if (new RegExp(`^${key}:\\s*$`).test(line)) { in_key = true; continue; }
+		// Inline form: `key: [a, b, c]` or `key: "[[a]]"` — parse on this line
+		const inline = line.match(new RegExp(`^${key}:\\s*(.+)$`));
+		if (inline) {
+			const inner = inline[1].trim();
+			// Bracketed list: [a, b]
+			const bracket = inner.match(/^\[(.*)\]$/);
+			if (bracket) {
+				bracket[1].split(',').map(s => s.trim().replace(/^"|"$/g, '').replace(/^\[\[|\]\]$/g, '').replace(/\.md$/, '')).filter(Boolean).forEach(v => out.push(v));
+			} else {
+				const w = inner.replace(/^"|"$/g, '').replace(/^\[\[|\]\]$/g, '').replace(/\.md$/, '').trim();
+				if (w) out.push(w);
+			}
+			continue;
+		}
 		if (in_key) {
 			const m = line.match(/^\s+-\s*"?\[?\[?([^"\]|\n]+?)\]?\]?"?\s*$/);
 			if (m) { out.push(m[1].trim().replace(/\.md$/, '')); continue; }
@@ -236,17 +272,7 @@ export function parse_fm_list(content, key) {
 }
 
 export function patch_frontmatter_derived_from(filePath, slugs) {
-	let content = readFileSync(filePath, 'utf8');
-	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-	const value = slugs.length
-		? `derived_from:\n${slugs.map(s => `  - ${safe_name(s)}`).join('\n')}`
-		: '';
-	if (fm) {
-		let body = fm[1].replace(/^derived_from:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();
-		if (value) body += '\n' + value;
-		content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${body.trim()}\n---`);
-	} else {
-		if (value) content = `---\n${value}\n---\n\n` + content;
-	}
-	writeFileSync(filePath, content);
+	patch_fm_list(filePath, 'derived_from', slugs, ss =>
+		`derived_from:\n${ss.map(s => `  - ${slug_ref(s)}`).join('\n')}`
+	);
 }

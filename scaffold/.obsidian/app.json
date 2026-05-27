@@ -4,5 +4,11 @@
   "useMarkdownLinks": false,
   "attachmentFolderPath": "attachments",
   "showLineNumber": true,
-  "promptDelete": false
+  "promptDelete": false,
+  "userIgnoreFilters": [
+    "vicky/sources/.absorbed/",
+    "vicky/pending/",
+    "vicky/graphs/",
+    "vicky/.graphify/"
+  ]
 }

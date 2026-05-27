@@ -2,13 +2,12 @@ import { z } from 'zod';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import * as fs from '../fs.js';
-import { enqueue_research, list_pending } from '../vault.js';
+import { enqueue_research, list_pending, slugify } from '../vault.js';
 import { ensure_init } from '../init.js';
 
 const PENDING_TYPE = 'research-pending';
 const MAX_TITLE = 80;
 
-const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
 
 function validate_frontmatter(fm) {
 	const missing = ['type', 'date', 'tags'].filter(k => fm[k] === undefined || fm[k] === null);
@@ -48,7 +47,7 @@ export function register(server) {
 		const err = validate_frontmatter(fm);
 		if (err) return { content: [{ type: 'text', text: `Error: ${err}` }], isError: true };
 
-		const slug = safe_name(question);
+		const slug = slugify(question);
 		const path = join(fs.pending(), `${slug}.md`);
 		if (existsSync(path)) {
 			return { content: [{ type: 'text', text: JSON.stringify({ status: 'duplicate', path }) }] };

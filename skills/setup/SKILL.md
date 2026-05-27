@@ -8,14 +8,14 @@ Loaded automatically at SessionStart. Re-invoke `/vicky:setup` after `/compact` 
 
 ## What Vicky provides
 
-A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown notes linked with `[[wikilinks]]`. An Obsidian vault preset (Dataview pre-enabled) ships with the plugin and is scaffolded into `.vicky/` on first init.
+A demand-driven KB stored under `vicky/` inside the project root. Conclusions and sources are markdown notes linked with `[[wikilinks]]`. The Obsidian vault is the project root itself — `init` scaffolds an `.obsidian/` preset (Dataview + graph) at the root and the `vicky/` KB subfolder beside it.
 
 ## Skills (`/vicky:<name>`)
 
 | Skill | When |
 |-------|------|
 | `setup` | Auto-fires on SessionStart. Re-invoke after `/compact` to restore context. |
-| `index [<path>]` | Docs → KB sync. Mirrors changed `*.md` / `*.mdx` / `*.rst` / `*.txt` outside `.vicky/` into `.vicky/sources/docs/`. Never indexes source code. |
+| `index [<path>]` | Docs → KB sync. Mirrors changed `*.md` / `*.mdx` / `*.rst` / `*.txt` outside `vicky/` into `vicky/sources/docs/`. Never indexes source code. |
 | `learn` | Drain the pending queue into sources and refresh link graphs. No stub conclusions — synthesis is a separate step via `conclude`. |
 | `research "<topic>"` | Topic-focused web research → sources + follow-up questions. Calls `learn` at the end. |
 | `experiment` | Autonomous code-optimisation loop. Reads `experiment.md`, runs in worktrees, learns time estimates. |
@@ -27,8 +27,8 @@ A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown not
 | `research-gap "<question>"` | Default for any knowledge question. Returns KB context if found, auto-enqueues research when there's a gap. Honors `WORKFLOW.md → auto_enqueue`. |
 | `query "<question>"`        | Direct KB lookup, no auto-enqueue. Focus-biased per WORKFLOW.md. |
 | `learn`                     | Drain the pending queue into sources. `triage` workflow filters to `priority: high`. |
-| `remember title content`    | Save findings to `.vicky/sources/` with frontmatter. Cannot write to `conclusions/`. |
-| `conclude title content sources` | Save a derived conclusion to `.vicky/conclusions/`. `sources` arg becomes `[[wikilinks]]` in frontmatter + body. Use once you have a real synthesis. |
+| `remember title content`    | Save findings to `vicky/sources/` with frontmatter. Cannot write to `conclusions/`. |
+| `conclude title content sources` | Save a derived conclusion to `vicky/conclusions/`. `sources` arg becomes `[[wikilinks]]` in frontmatter + body. Use once you have a real synthesis. |
 | `enqueue "<question>"`      | Manually queue a research question. |
 | `relink`                    | Rebuild link graphs + `related:` frontmatter. |
 | `dashboard`                 | Vault overview (counts, hubs, pending, sources awaiting synthesis, orphans, stale, tags) via Obsidian + Dataview. Call before research sessions and when the user asks about KB state. |
@@ -37,7 +37,7 @@ A demand-driven KB stored in `.vicky/`. Conclusions and sources are markdown not
 
 ## WORKFLOW.md — single source of truth
 
-Read `.vicky/WORKFLOW.md` once at session start, again whenever a tool result references a workflow.
+Read `vicky/WORKFLOW.md` once at session start, again whenever a tool result references a workflow.
 
 Frontmatter keys that affect runtime:
 - `active_focus: [tag, topic]` — biases query results, filters dashboard `By focus` section
@@ -77,15 +77,18 @@ Do not call `learn` reactively for every question — it drains the queue and is
 
 ## Vault layout (created by init)
 
+The Obsidian vault is the project root. `vicky/` is just the KB subfolder. `.obsidian/` sits at the vault root, not inside `vicky/`.
+
 ```
-.vicky/
-├── sources/        external research, papers, web findings
-├── conclusions/    synthesised knowledge (only real synthesis — no stubs)
-├── pending/        queued research questions
-├── .graphify/      semantic graph state (graph.json — read by query_graph)
-├── graphs/         Dataview-queryable wiki of the graph (vicky.md + clusters)
-├── .graphifyignore graphify scope (excludes pending/, .obsidian/, Dashboard.md, etc.)
-├── .obsidian/      Dataview-enabled vault config
-├── WORKFLOW.md     focus + rules + routing (edit to steer)
-└── Dashboard.md    live Dataview views
+<project root>/         ← Obsidian vault (open this directory in Obsidian)
+├── .obsidian/          Dataview + graph + plugin preset (force-written by init)
+└── vicky/
+    ├── sources/         external research, papers, web findings
+    ├── conclusions/     synthesised knowledge (only real synthesis — no stubs)
+    ├── pending/         queued research questions
+    ├── .graphify/       semantic graph state (graph.json — read by query_graph)
+    ├── graphs/          Dataview-queryable wiki of the graph (vicky.md + clusters)
+    ├── .graphifyignore  graphify scope (excludes pending/, graphs/, etc.)
+    ├── WORKFLOW.md      focus + rules + routing (edit to steer)
+    └── Dashboard.md     live Dataview views
 ```

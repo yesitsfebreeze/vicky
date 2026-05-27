@@ -12,9 +12,9 @@ Invoke: `/vicky:learn`
 
 ## Contract (what the tool guarantees)
 
-For every file in `.vicky/pending/`:
+For every file in `vicky/pending/`:
 
-1. **Promote to source** — write `.vicky/sources/<slug>.md` with
+1. **Promote to source** — write `vicky/sources/<slug>.md` with
    `type: source`, `tags: [source]`, body = question + context + graph
    context. Any existing source links from the pending stub end up as
    `related:` on the new source.
@@ -22,7 +22,7 @@ For every file in `.vicky/pending/`:
 3. **Relink** — graphs rebuilt, `related:` frontmatter refreshed on every
    note across sources and conclusions.
 
-**No conclusion is created.** Conclusions land in `.vicky/conclusions/`
+**No conclusion is created.** Conclusions land in `vicky/conclusions/`
 only when an agent has a real synthesis to write — via `conclude`
 (direct) or `complete-research` (research/ promotion). The dashboard
 "Sources awaiting synthesis" section surfaces sources without an
@@ -58,11 +58,11 @@ title=<slug> sources=[<slug>, ...]`.
 
 ## State touched
 
-- `.vicky/pending/*.md`       deleted
-- `.vicky/sources/*.md`       added (promoted from pending)
-- `.vicky/graphs/*.json`      rebuilt
-- `.vicky/sources/*.md`       `related:` updated by relink
-- `.vicky/conclusions/*.md`   `related:` updated by relink
+- `vicky/pending/*.md`       deleted
+- `vicky/sources/*.md`       added (promoted from pending)
+- `vicky/graphs/*.json`      rebuilt
+- `vicky/sources/*.md`       `related:` updated by relink
+- `vicky/conclusions/*.md`   `related:` updated by relink
 
 ## Failure modes (handled by the tool)
 

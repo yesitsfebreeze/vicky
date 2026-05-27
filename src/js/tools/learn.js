@@ -3,7 +3,7 @@ import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, statSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
 import * as fs from '../fs.js';
-import { query_graph } from '../graph.js';
+import { query_graph, update_kb } from '../graph.js';
 import { relink_dir } from '../link.js';
 import { save_note, list_pending, read_pending, delete_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
@@ -94,7 +94,7 @@ export function register(server, notify) {
 							tags: ['source'],
 							type: 'source',
 							related: pending_sources,
-							id_filename: true,
+							filename_slug: pf.replace(/\.md$/, ''),
 						});
 						autofill_frontmatter(newSrcPath);
 
@@ -109,7 +109,17 @@ export function register(server, notify) {
 
 				jobs.update(job_id, { progress: { phase: 'relink' }, counts: { promoted, patched } });
 
-				notify('info', 'vicky: relinking...');
+				notify('info', 'vicky: rebuilding semantic graph...');
+					const upd = await update_kb();
+					if (upd && upd.ok === false) {
+						const hint = upd.reason === 'no_backend'
+							? 'set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)'
+							: upd.reason === 'graphify_missing'
+								? 'run `npm install` in vicky plugin root'
+								: 'corpus may be too small';
+						notify('info', `vicky learn: graph not rebuilt (${upd.reason}) — ${hint}. Relinking against stale graph.`);
+					}
+					notify('info', 'vicky: relinking...');
 				const graph = fs.kb_graph();
 				const [src, con] = await Promise.all([
 					relink_dir(fs.sources(), graph),

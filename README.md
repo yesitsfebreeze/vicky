@@ -28,7 +28,7 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 /plugin install vicky@vicky
 ```
 
-Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky` skill. First session scaffolds `vicky/{sources,conclusions,pending,graphs}` plus the Obsidian preset (`.obsidian/`, `Dashboard.md`, `WORKFLOW.md`, folder indexes).
+Registers the MCP server, hooks `init()` to SessionStart, and exposes the `vicky` skill. First session scaffolds the Obsidian preset (`.obsidian/` with Dataview + graph) at the project root and `vicky/{sources,conclusions,pending,graphs,Dashboard.md,WORKFLOW.md}` beside it. The project root is the Obsidian vault.
 
 ### Any other MCP-capable agent
 
@@ -50,7 +50,7 @@ Register the MCP server pointing at `~/vicky/dist/index.js`. Example `.mcp.json`
 }
 ```
 
-Restart the agent. First call triggers `init()`. Open `vicky/` in Obsidian and enable Dataview (the preset auto-installs it on first open).
+Restart the agent. First call triggers `init()`. Open the project root in Obsidian — the `.obsidian/` preset enables Dataview + graph settings. (Plugins must be installed via the Community Plugins UI on first run; the preset only declares which are enabled.)
 
 ## Update
 
@@ -90,16 +90,17 @@ Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` neve
 │   └── tools/
 └── README.md                # this file
 
-<your project>/vicky/       # created by init() in each project
-├── sources/                 # external research, papers
-├── conclusions/             # synthesized knowledge
-├── pending/                 # queued research questions
-├── .graphify/               # graphify state — graph.json (semantic, BFS target)
-├── graphs/                  # Dataview-queryable wiki: vicky.md + cluster pages
-├── .graphifyignore          # extract scope (excludes pending/, .obsidian/, etc.)
-├── .obsidian/               # Obsidian vault config (Dataview enabled)
-├── WORKFLOW.md              # focus, rules, routing (edit to steer Vicky)
-└── Dashboard.md             # live Dataview views
+<your project>/             # ← Obsidian vault (open this in Obsidian)
+├── .obsidian/              # Obsidian preset (Dataview + graph + plugin list)
+└── vicky/                  # created by init() in each project
+    ├── sources/             # external research, papers
+    ├── conclusions/         # synthesized knowledge
+    ├── pending/             # queued research questions
+    ├── .graphify/           # graphify state — graph.json (semantic, BFS target)
+    ├── graphs/              # Dataview-queryable wiki: vicky.md + cluster pages
+    ├── .graphifyignore      # extract scope (excludes pending/, graphs/, etc.)
+    ├── WORKFLOW.md          # focus, rules, routing (edit to steer Vicky)
+    └── Dashboard.md         # live Dataview views
 ```
 
 ## WORKFLOW.md

@@ -87,14 +87,14 @@ __export(init_exports, {
 });
 import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from "fs";
 import { join as join2 } from "path";
-function copy_tree(source, destination) {
+function copy_tree(source, destination, { overwrite = false } = {}) {
   if (!existsSync(source)) return;
   mkdirSync(destination, { recursive: true });
   for (const entry of readdirSync(source, { withFileTypes: true })) {
     const from = join2(source, entry.name);
     const to = join2(destination, entry.name);
-    if (entry.isDirectory()) copy_tree(from, to);
-    else if (entry.isFile() && !existsSync(to)) copyFileSync(from, to);
+    if (entry.isDirectory()) copy_tree(from, to, { overwrite });
+    else if (entry.isFile() && (overwrite || !existsSync(to))) copyFileSync(from, to);
   }
 }
 function banner() {
@@ -115,7 +115,12 @@ async function init() {
   for (const directory of [sources(), conclusions()]) {
     if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
   }
-  copy_tree(template_dir(), ".");
+  for (const entry of readdirSync(template_dir(), { withFileTypes: true })) {
+    const from = join2(template_dir(), entry.name);
+    const overwrite = entry.name === ".obsidian";
+    if (entry.isDirectory()) copy_tree(from, entry.name, { overwrite });
+    else if (entry.isFile() && (overwrite || !existsSync(entry.name))) copyFileSync(from, entry.name);
+  }
   const ignore = graphifyignore();
   if (!existsSync(ignore)) writeFileSync(ignore, GRAPHIFYIGNORE);
   initialized = true;
@@ -22271,7 +22276,7 @@ function frontmatter_links(key, items) {
   if (!items?.length) return "";
   return `
 ${key}:
-${items.map((t) => `  - "[[${safe_name(t)}]]"`).join("\n")}`;
+${items.map((t) => `  - "[[${slug_ref(t)}]]"`).join("\n")}`;
 }
 function gen_source_id(dir = sources()) {
   const d = /* @__PURE__ */ new Date();
@@ -22291,16 +22296,51 @@ function yaml_title(title) {
   if (/[:"]/.test(title)) return `"${title.replace(/"/g, '\\"')}"`;
   return title;
 }
-function save_note(title, body, { dir = sources(), tags = [], type = "source", sources: sources2 = [], related = [], id_filename = false } = {}) {
+function strip_fm_key(fmBody, key) {
+  const re = new RegExp(`^${key}:[^\\n]*(?:\\n[ \\t]+[^\\n]*)*`, "m");
+  return fmBody.replace(re, "").replace(/\n{2,}/g, "\n").trimEnd();
+}
+function patch_fm_list(filePath, key, items, formatter) {
+  let content = readFileSync2(filePath, "utf8");
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const value = items.length ? formatter(items) : "";
+  if (fm) {
+    let body = strip_fm_key(fm[1], key);
+    if (value) body += "\n" + value;
+    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${body.trim()}
+---`);
+  } else if (value) {
+    content = `---
+${value}
+---
+
+` + content;
+  }
+  writeFileSync2(filePath, content);
+}
+function save_note(title, body, {
+  dir = sources(),
+  tags = [],
+  type = "source",
+  sources: sources2 = [],
+  related = [],
+  id_filename = false,
+  filename_slug = null
+} = {}) {
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   mkdirSync2(dir, { recursive: true });
   let path, title_field;
-  if (id_filename) {
+  if (filename_slug) {
+    const safe = slug_ref(filename_slug);
+    path = join4(dir, `${safe}.md`);
+    title_field = yaml_title(title);
+  } else if (id_filename) {
     const id = gen_source_id(dir);
     path = join4(dir, `${id}.md`);
     title_field = yaml_title(title);
   } else {
-    const safe = safe_name(title);
+    const safe = slugify(title);
     path = join4(dir, `${safe}.md`);
     title_field = safe;
   }
@@ -22321,7 +22361,7 @@ ${body_with_links}
 }
 function enqueue_research(question, { context = "", requested_by = "", priority = "med", sources: sources2 = [] } = {}) {
   const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const safe = safe_name(question);
+  const safe = slugify(question);
   mkdirSync2(pending(), { recursive: true });
   const path = join4(pending(), `${safe}.md`);
   if (existsSync3(path)) return path;
@@ -22361,6 +22401,7 @@ function read_pending(file) {
   const body_sources = s ? [...s[1].matchAll(/\[\[([^\]|]+)\]\]/g)].map((m) => m[1].trim()) : [];
   return {
     path: fp,
+    slug: file.replace(/\.md$/, ""),
     question: (q ? q[1] : file.replace(/\.md$/, "")).trim(),
     context: (c ? c[1] : "").trim(),
     sources: [.../* @__PURE__ */ new Set([...fm_sources, ...body_sources])]
@@ -22371,44 +22412,22 @@ function delete_pending(file) {
   if (existsSync3(fp)) unlinkSync(fp);
 }
 function patch_frontmatter_sources(filePath, sources2) {
-  let content = readFileSync2(filePath, "utf8");
-  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  const value = sources2.length ? `sources:
-${sources2.map((s) => `  - "[[${safe_name(s)}]]"`).join("\n")}` : "";
-  if (fm) {
-    let body = fm[1].replace(/^sources:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
-    if (value) body += "\n" + value;
-    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
-${body.trim()}
----`);
-  } else {
-    if (value) content = `---
-${value}
----
-
-` + content;
-  }
-  writeFileSync2(filePath, content);
+  patch_fm_list(
+    filePath,
+    "sources",
+    sources2,
+    (ss) => `sources:
+${ss.map((s) => `  - "[[${slug_ref(s)}]]"`).join("\n")}`
+  );
 }
 function patch_frontmatter_related(filePath, links) {
-  let content = readFileSync2(filePath, "utf8");
-  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  const value = links.length ? `related:
-${links.map((t) => `  - "[[${safe_name(t)}]]"`).join("\n")}` : "";
-  if (fm) {
-    let body = fm[1].replace(/^related:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
-    if (value) body += "\n" + value;
-    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
-${body.trim()}
----`);
-  } else {
-    if (value) content = `---
-${value}
----
-
-` + content;
-  }
-  writeFileSync2(filePath, content);
+  patch_fm_list(
+    filePath,
+    "related",
+    links,
+    (ll) => `related:
+${ll.map((t) => `  - "[[${slug_ref(t)}]]"`).join("\n")}`
+  );
 }
 function find_source(name) {
   const slug = name.replace(/\.md$/, "");
@@ -22453,6 +22472,18 @@ function parse_fm_list(content, key) {
       in_key = true;
       continue;
     }
+    const inline = line.match(new RegExp(`^${key}:\\s*(.+)$`));
+    if (inline) {
+      const inner = inline[1].trim();
+      const bracket = inner.match(/^\[(.*)\]$/);
+      if (bracket) {
+        bracket[1].split(",").map((s) => s.trim().replace(/^"|"$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/\.md$/, "")).filter(Boolean).forEach((v) => out.push(v));
+      } else {
+        const w = inner.replace(/^"|"$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/\.md$/, "").trim();
+        if (w) out.push(w);
+      }
+      continue;
+    }
     if (in_key) {
       const m = line.match(/^\s+-\s*"?\[?\[?([^"\]|\n]+?)\]?\]?"?\s*$/);
       if (m) {
@@ -22465,30 +22496,20 @@ function parse_fm_list(content, key) {
   return out;
 }
 function patch_frontmatter_derived_from(filePath, slugs) {
-  let content = readFileSync2(filePath, "utf8");
-  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  const value = slugs.length ? `derived_from:
-${slugs.map((s) => `  - ${safe_name(s)}`).join("\n")}` : "";
-  if (fm) {
-    let body = fm[1].replace(/^derived_from:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
-    if (value) body += "\n" + value;
-    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
-${body.trim()}
----`);
-  } else {
-    if (value) content = `---
-${value}
----
-
-` + content;
-  }
-  writeFileSync2(filePath, content);
+  patch_fm_list(
+    filePath,
+    "derived_from",
+    slugs,
+    (ss) => `derived_from:
+${ss.map((s) => `  - ${slug_ref(s)}`).join("\n")}`
+  );
 }
-var safe_name;
+var slugify, slug_ref;
 var init_vault = __esm({
   "js/vault.js"() {
     init_fs();
-    safe_name = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 45).replace(/\s+/g, "-");
+    slugify = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
+    slug_ref = (s) => String(s).replace(/\.md$/, "").replace(/[^\w\s.-]/g, "").trim().replace(/\s+/g, "-");
   }
 });
 
@@ -23099,7 +23120,7 @@ ${ctx.trim()}
               tags: ["source"],
               type: "source",
               related: pending_sources,
-              id_filename: true
+              filename_slug: pf.replace(/\.md$/, "")
             });
             autofill_frontmatter(newSrcPath);
             delete_pending(pf);
@@ -23111,6 +23132,12 @@ ${ctx.trim()}
         if (promoted) notify2("info", `vicky: promoted ${promoted} pending \u2192 source.`);
         if (patched) notify2("info", `vicky: backfilled frontmatter on ${patched} existing sources.`);
         update(job_id, { progress: { phase: "relink" }, counts: { promoted, patched } });
+        notify2("info", "vicky: rebuilding semantic graph...");
+        const upd = await update_kb();
+        if (upd && upd.ok === false) {
+          const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)" : upd.reason === "graphify_missing" ? "run `npm install` in vicky plugin root" : "corpus may be too small";
+          notify2("info", `vicky learn: graph not rebuilt (${upd.reason}) \u2014 ${hint}. Relinking against stale graph.`);
+        }
         notify2("info", "vicky: relinking...");
         const graph = kb_graph();
         const [src, con] = await Promise.all([
@@ -23180,7 +23207,7 @@ function register7(server2) {
     };
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
-    const slug = safe_name2(question);
+    const slug = slugify(question);
     const path = join8(pending(), `${slug}.md`);
     if (existsSync7(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
@@ -23191,7 +23218,7 @@ function register7(server2) {
 Pending queue depth: ${depth}` }] };
   });
 }
-var PENDING_TYPE, MAX_TITLE, safe_name2;
+var PENDING_TYPE, MAX_TITLE;
 var init_enqueue = __esm({
   "js/tools/enqueue.js"() {
     init_zod();
@@ -23200,7 +23227,6 @@ var init_enqueue = __esm({
     init_init();
     PENDING_TYPE = "research-pending";
     MAX_TITLE = 80;
-    safe_name2 = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
   }
 });
 

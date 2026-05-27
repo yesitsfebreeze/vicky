@@ -1,0 +1,25 @@
+{
+  "collapse-filter": false,
+  "search": "-path:\".absorbed\" -path:\"vicky/pending\" -path:\"vicky/graphs\" -path:\"Dashboard\"",
+  "showTags": false,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    { "query": "path:vicky/conclusions", "color": { "a": 1, "rgb": 4357119 } },
+    { "query": "path:vicky/sources", "color": { "a": 1, "rgb": 5066061 } }
+  ],
+  "collapse-display": false,
+  "showArrow": true,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": false,
+  "centerStrength": 0.5,
+  "repelStrength": 20,
+  "linkStrength": 1,
+  "linkDistance": 500,
+  "scale": 1,
+  "close": true
+}
