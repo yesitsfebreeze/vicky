@@ -15,6 +15,7 @@ const GRAPHIFYIGNORE = [
 	'# Vicky-managed — controls graphify extract scope.',
 	'# Keep sources/ and conclusions/ as the only content corpora.',
 	'pending/',
+	'sources/.absorbed/',
 	'graphs/',
 	'.graphify/',
 	'.obsidian/',

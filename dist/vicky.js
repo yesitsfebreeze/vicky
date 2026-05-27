@@ -36,6 +36,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // js/fs.js
 var fs_exports = {};
 __export(fs_exports, {
+  absorbed: () => absorbed,
   conclusions: () => conclusions,
   dashboard_md: () => dashboard_md,
   graphify_out: () => graphify_out,
@@ -55,12 +56,13 @@ __export(fs_exports, {
 });
 import { dirname, join, basename, resolve } from "path";
 import { fileURLToPath } from "url";
-var SKILL_DIR, root, sources, conclusions, research, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
+var SKILL_DIR, root, sources, absorbed, conclusions, research, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
 var init_fs = __esm({
   "js/fs.js"() {
     SKILL_DIR = dirname(fileURLToPath(import.meta.url));
     root = () => process.env.VICKY_ROOT || "vicky";
     sources = () => join(root(), "sources");
+    absorbed = () => join(sources(), ".absorbed");
     conclusions = () => join(root(), "conclusions");
     research = () => join(root(), "research");
     pending = () => join(root(), "pending");
@@ -133,6 +135,7 @@ var init_init = __esm({
       "# Vicky-managed \u2014 controls graphify extract scope.",
       "# Keep sources/ and conclusions/ as the only content corpora.",
       "pending/",
+      "sources/.absorbed/",
       "graphs/",
       ".graphify/",
       ".obsidian/",
@@ -22220,7 +22223,7 @@ var init_graph = __esm({
 });
 
 // js/vault.js
-import { existsSync as existsSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, mkdirSync as mkdirSync2, unlinkSync } from "fs";
+import { existsSync as existsSync3, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync2, mkdirSync as mkdirSync2, unlinkSync, renameSync as renameSync2 } from "fs";
 import { join as join4 } from "path";
 function search_hits(dir, query, limit = 10) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -22356,6 +22359,26 @@ function delete_pending(file) {
   const fp = join4(pending(), file);
   if (existsSync3(fp)) unlinkSync(fp);
 }
+function patch_frontmatter_sources(filePath, sources2) {
+  let content = readFileSync2(filePath, "utf8");
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const value = sources2.length ? `sources:
+${sources2.map((s) => `  - "[[${safe_link(s)}]]"`).join("\n")}` : "";
+  if (fm) {
+    let body = fm[1].replace(/^sources:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
+    if (value) body += "\n" + value;
+    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${body.trim()}
+---`);
+  } else {
+    if (value) content = `---
+${value}
+---
+
+` + content;
+  }
+  writeFileSync2(filePath, content);
+}
 function patch_frontmatter_related(filePath, links) {
   let content = readFileSync2(filePath, "utf8");
   const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -22363,6 +22386,57 @@ function patch_frontmatter_related(filePath, links) {
 ${links.map((t) => `  - "[[${safe_link(t)}]]"`).join("\n")}` : "";
   if (fm) {
     let body = fm[1].replace(/^related:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
+    if (value) body += "\n" + value;
+    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${body.trim()}
+---`);
+  } else {
+    if (value) content = `---
+${value}
+---
+
+` + content;
+  }
+  writeFileSync2(filePath, content);
+}
+function absorb_source(name) {
+  const slug = name.replace(/\.md$/, "");
+  const from = join4(sources(), `${slug}.md`);
+  const to = join4(absorbed(), `${slug}.md`);
+  if (!existsSync3(from)) throw new Error(`source not found: ${from}`);
+  mkdirSync2(absorbed(), { recursive: true });
+  renameSync2(from, to);
+  return to;
+}
+function parse_fm_list(content, key) {
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return [];
+  const lines = fm[1].split("\n");
+  const out = [];
+  let in_key = false;
+  for (const line of lines) {
+    if (new RegExp(`^${key}:\\s*$`).test(line)) {
+      in_key = true;
+      continue;
+    }
+    if (in_key) {
+      const m = line.match(/^\s+-\s*"?\[?\[?([^"\]|\n]+?)\]?\]?"?\s*$/);
+      if (m) {
+        out.push(m[1].trim().replace(/\.md$/, ""));
+        continue;
+      }
+      if (line.trim() === "" || /^\S/.test(line)) in_key = false;
+    }
+  }
+  return out;
+}
+function patch_frontmatter_derived_from(filePath, slugs) {
+  let content = readFileSync2(filePath, "utf8");
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const value = slugs.length ? `derived_from:
+${slugs.map((s) => `  - ${safe_link(s)}`).join("\n")}` : "";
+  if (fm) {
+    let body = fm[1].replace(/^derived_from:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
     if (value) body += "\n" + value;
     content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
 ${body.trim()}
@@ -23425,12 +23499,90 @@ var init_job_status = __esm({
   }
 });
 
+// js/tools/crystalize.js
+import { existsSync as existsSync10, readFileSync as readFileSync8, readdirSync as readdirSync7 } from "fs";
+import { join as join12 } from "path";
+function find_conclusion(name) {
+  const slug = name.replace(/\.md$/, "");
+  const stack = [conclusions()];
+  while (stack.length) {
+    const d = stack.pop();
+    if (!existsSync10(d)) continue;
+    for (const e of readdirSync7(d, { withFileTypes: true })) {
+      if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
+      const full = join12(d, e.name);
+      if (e.isDirectory()) stack.push(full);
+      else if (e.name === `${slug}.md`) return full;
+    }
+  }
+  return null;
+}
+function register14(server2) {
+  server2.registerTool("crystalize", {
+    description: "Condense KB by absorbing source(s) into a conclusion. Moves source files to vicky/sources/.absorbed/ (hidden dotfolder, excluded from graph) and appends them to the conclusion derived_from: frontmatter. Absorbed slugs are removed from sources:. dry_run=true previews moves. Run /vicky:learn after to rebuild graph.",
+    inputSchema: {
+      conclusion: external_exports.string().describe("Conclusion title or slug to crystalize into"),
+      absorb: external_exports.array(external_exports.string()).min(1).describe("Source slugs (with or without .md) to absorb"),
+      dry_run: external_exports.boolean().optional().describe("Preview moves only, default false")
+    }
+  }, async ({ conclusion, absorb, dry_run = false }) => {
+    await ensure_init();
+    const concPath = find_conclusion(conclusion);
+    if (!concPath) {
+      return { content: [{ type: "text", text: `Error: conclusion not found: ${conclusion}` }] };
+    }
+    const concContent = readFileSync8(concPath, "utf8");
+    const existing_sources = parse_fm_list(concContent, "sources");
+    const existing_derived = parse_fm_list(concContent, "derived_from");
+    const moves = [];
+    const missing = [];
+    for (const name of absorb) {
+      const slug = name.replace(/\.md$/, "");
+      const srcPath = join12(sources(), `${slug}.md`);
+      if (!existsSync10(srcPath)) {
+        missing.push(slug);
+        continue;
+      }
+      moves.push(slug);
+    }
+    const new_derived = [.../* @__PURE__ */ new Set([...existing_derived, ...moves])];
+    const new_sources = existing_sources.filter((s) => !moves.includes(s));
+    if (dry_run) {
+      return { content: [{ type: "text", text: JSON.stringify({
+        conclusion: concPath,
+        would_absorb: moves,
+        missing,
+        new_sources,
+        new_derived_from: new_derived
+      }, null, 2) }] };
+    }
+    for (const slug of moves) absorb_source(slug);
+    patch_frontmatter_sources(concPath, new_sources);
+    patch_frontmatter_derived_from(concPath, new_derived);
+    return { content: [{
+      type: "text",
+      text: `Crystalized ${moves.length} source(s) into ${conclusion}.
+Absorbed: ${moves.join(", ") || "none"}
+Missing: ${missing.join(", ") || "none"}
+Run /vicky:learn to rebuild graph.`
+    }] };
+  });
+}
+var init_crystalize = __esm({
+  "js/tools/crystalize.js"() {
+    init_zod();
+    init_fs();
+    init_vault();
+    init_init();
+  }
+});
+
 // js/mcp-server.js
 var mcp_server_exports = {};
 __export(mcp_server_exports, {
   config: () => config2
 });
-import { readFileSync as readFileSync8 } from "fs";
+import { readFileSync as readFileSync9 } from "fs";
 var config2, server, notify, transport;
 var init_mcp_server2 = __esm({
   async "js/mcp-server.js"() {
@@ -23449,6 +23601,7 @@ var init_mcp_server2 = __esm({
     init_dashboard2();
     init_dql();
     init_job_status();
+    init_crystalize();
     config2 = {
       autoEnrichDefault: true,
       autoResearchGaps: true,
@@ -23456,7 +23609,7 @@ var init_mcp_server2 = __esm({
     };
     try {
       const configPath = "./vicky.config.json";
-      const configText = readFileSync8(configPath, "utf8");
+      const configText = readFileSync9(configPath, "utf8");
       config2 = { ...config2, ...JSON.parse(configText) };
     } catch (_) {
     }
@@ -23487,6 +23640,7 @@ var init_mcp_server2 = __esm({
     register11(server);
     register12(server);
     register13(server);
+    register14(server);
     transport = new StdioServerTransport();
     await server.connect(transport);
   }

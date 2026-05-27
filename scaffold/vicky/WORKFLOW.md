@@ -71,3 +71,14 @@ Map question patterns → workflow. First match wins.
 - Read frontmatter first, then `Focus`, then `Active Rules`.
 - If `active_focus` non-empty, prefer matching nodes for `query` results.
 - Honor `auto_enqueue: false` by returning gap without writing pending.
+
+### crystalize
+
+Condense KB. Absorb redundant source(s) into a mature conclusion. Source files move to `sources/.absorbed/` (hidden dotfolder), conclusion records them under `derived_from:` frontmatter.
+
+1. Identify mature conclusion + redundant sources
+2. `crystalize conclusion=<slug> absorb=[<source-slugs>] dry_run=true` — preview
+3. `crystalize` without `dry_run` — moves files, updates `derived_from:`
+4. `/vicky:learn` — rebuild graph
+
+Use when one conclusion is the canonical takeaway and source notes no longer carry unique signal. Restore by moving file back from `.absorbed/` and editing frontmatter. See `/vicky:crystalize` skill for full contract.

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync, renameSync } from 'fs';
 import { join } from 'path';
 import * as fs from './fs.js';
 
@@ -215,6 +215,66 @@ export function patch_frontmatter_related(filePath, links) {
 	if (fm) {
 		// Remove existing related: block (key + all indented list lines below it)
 		let body = fm[1].replace(/^related:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();
+		if (value) body += '\n' + value;
+		content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${body.trim()}\n---`);
+	} else {
+		if (value) content = `---\n${value}\n---\n\n` + content;
+	}
+	writeFileSync(filePath, content);
+}
+
+
+// --- crystalize support ---
+
+export function absorb_source(name) {
+	const slug = name.replace(/\.md$/, '');
+	const from = join(fs.sources(), `${slug}.md`);
+	const to = join(fs.absorbed(), `${slug}.md`);
+	if (!existsSync(from)) throw new Error(`source not found: ${from}`);
+	mkdirSync(fs.absorbed(), { recursive: true });
+	renameSync(from, to);
+	return to;
+}
+
+export function restore_source(name) {
+	const slug = name.replace(/\.md$/, '');
+	const from = join(fs.absorbed(), `${slug}.md`);
+	const to = join(fs.sources(), `${slug}.md`);
+	if (!existsSync(from)) throw new Error(`absorbed source not found: ${from}`);
+	renameSync(from, to);
+	return to;
+}
+
+export function list_absorbed() {
+	if (!existsSync(fs.absorbed())) return [];
+	return readdirSync(fs.absorbed()).filter(f => f.endsWith('.md'));
+}
+
+export function parse_fm_list(content, key) {
+	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+	if (!fm) return [];
+	const lines = fm[1].split('\n');
+	const out = [];
+	let in_key = false;
+	for (const line of lines) {
+		if (new RegExp(`^${key}:\\s*$`).test(line)) { in_key = true; continue; }
+		if (in_key) {
+			const m = line.match(/^\s+-\s*"?\[?\[?([^"\]|\n]+?)\]?\]?"?\s*$/);
+			if (m) { out.push(m[1].trim().replace(/\.md$/, '')); continue; }
+			if (line.trim() === '' || /^\S/.test(line)) in_key = false;
+		}
+	}
+	return out;
+}
+
+export function patch_frontmatter_derived_from(filePath, slugs) {
+	let content = readFileSync(filePath, 'utf8');
+	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+	const value = slugs.length
+		? `derived_from:\n${slugs.map(s => `  - ${safe_link(s)}`).join('\n')}`
+		: '';
+	if (fm) {
+		let body = fm[1].replace(/^derived_from:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();
 		if (value) body += '\n' + value;
 		content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${body.trim()}\n---`);
 	} else {

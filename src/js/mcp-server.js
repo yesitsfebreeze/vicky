@@ -16,6 +16,7 @@ import * as completeResearch from './tools/complete-research.js';
 import * as dashboard   from './tools/dashboard.js';
 import * as dql         from './tools/dql.js';
 import * as jobStatus  from './tools/job-status.js';
+import * as crystalize from './tools/crystalize.js';
 
 // Load config with defaults
 let config = {
@@ -60,6 +61,7 @@ completeResearch.register(server);
 dashboard.register(server);
 dql.register(server);
 jobStatus.register(server);
+crystalize.register(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
