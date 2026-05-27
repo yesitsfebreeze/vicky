@@ -22799,7 +22799,7 @@ function register2(server2, notify2) {
       if (should) {
         const pending2 = list_pending();
         const q_slug = slugify(question);
-        already_pending = pending2.some((f) => match_prefix(q_slug, f));
+        already_pending = pending2.some((f) => slugify(f) === q_slug);
         if (!already_pending) {
           enqueue_research(question, { requested_by: workflow });
           notify2("info", `vicky: auto-enqueued research for "${question}" (workflow: ${workflow})`);
@@ -22917,7 +22917,7 @@ function list_md_files(dir) {
 }
 function parse_related(raw, selfName) {
   const self_slug = slugify(selfName);
-  return [...(raw ?? "").matchAll(/^NODE\s+(.+?)\s+\[/gm)].map((m) => slugify(m[1])).filter((t) => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith("code:") && !t.startsWith("Graph"));
+  return [...(raw ?? "").matchAll(/^NODE\s+(.+?)\s+\[/gm)].map((m) => slugify(m[1])).filter((t) => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith("code:"));
 }
 async function relink_dir(dir, graphPath, notify2) {
   const files = list_md_files(dir);
