@@ -12,7 +12,7 @@ export function register(server) {
 			content: z.string().describe('Synthesised takeaway (markdown)'),
 			folder:  z.string().optional().describe('Subfolder inside vicky/conclusions (e.g. "perf", "physics")'),
 			tags:    z.array(z.string()).optional().describe('Extra tags merged with `conclusion`'),
-			sources: z.array(z.string()).optional().describe('Source note titles this conclusion derives from — required for the graph edges. Pass at least one.'),
+			sources: z.array(z.string()).optional().describe('Source IDs (hash filenames from remember/learn responses) this conclusion derives from. Pass at least one. Written as [[wikilinks]] in frontmatter + body.'),
 			related: z.array(z.string()).optional().describe('Sibling conclusions or related notes'),
 		},
 	}, async ({ title, content, folder, tags = [], sources = [], related = [] }) => {

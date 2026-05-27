@@ -11,8 +11,6 @@ import * as relink      from './tools/relink.js';
 import * as learn      from './tools/learn.js';
 import * as enqueue     from './tools/enqueue.js';
 import * as webSearch   from './tools/web-research.js';
-import * as promote     from './tools/promote.js';
-import * as completeResearch from './tools/complete-research.js';
 import * as dashboard   from './tools/dashboard.js';
 import * as dql         from './tools/dql.js';
 import * as jobStatus  from './tools/job-status.js';
@@ -35,7 +33,7 @@ try {
 
 const server = new McpServer({
 	name: 'vicky',
-	version: '0.3.0',
+	version: '0.9.0',
 	description: config.description || 'Demand-driven KB: auto-enrich via research-gap'
 });
 
@@ -56,8 +54,6 @@ relink.register(server, notify);
 learn.register(server, notify);
 enqueue.register(server);
 webSearch.register(server, notify);
-promote.register(server);
-completeResearch.register(server);
 dashboard.register(server);
 dql.register(server);
 jobStatus.register(server);

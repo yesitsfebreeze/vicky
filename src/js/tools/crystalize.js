@@ -31,7 +31,7 @@ export function register(server) {
 		description: 'Condense KB by absorbing source(s) into a conclusion. Moves source files to vicky/sources/.absorbed/ (hidden dotfolder, excluded from graph) and appends them to the conclusion derived_from: frontmatter. Absorbed slugs are removed from sources:. dry_run=true previews moves. Run /vicky:learn after to rebuild graph.',
 		inputSchema: {
 			conclusion: z.string().describe('Conclusion title or slug to crystalize into'),
-			absorb: z.array(z.string()).min(1).describe('Source slugs (with or without .md) to absorb'),
+			absorb: z.array(z.string()).min(1).describe('Source IDs (hash filenames, with or without .md) to absorb into the conclusion derived_from frontmatter.'),
 			dry_run: z.boolean().optional().describe('Preview moves only, default false'),
 		},
 	}, async ({ conclusion, absorb, dry_run = false }) => {

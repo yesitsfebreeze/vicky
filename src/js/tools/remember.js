@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { join } from 'path';
+import { join, basename } from 'path';
 import * as fs from '../fs.js';
 import { save_note } from '../vault.js';
 import { ensure_init } from '../init.js';
@@ -22,7 +22,8 @@ export function register(server) {
 		}
 		const dir = folder ? join(fs.sources(), folder) : fs.sources();
 		const merged = Array.from(new Set(['source', ...tags.filter(t => t !== 'research')]));
-		const path = save_note(title, content, { dir, tags: merged, type: 'source', sources, related });
-		return { content: [{ type: 'text', text: `Saved: ${path}` }] };
+		const path = save_note(title, content, { dir, tags: merged, type: 'source', sources, related, id_filename: true });
+		const slug = basename(path).replace(/\.md$/, '');
+		return { content: [{ type: 'text', text: `Saved: ${path}\nID: ${slug}` }] };
 	});
 }

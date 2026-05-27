@@ -48,7 +48,7 @@ function est_learn_seconds() {
 
 export function register(server, notify) {
 	server.registerTool('learn', {
-		description: 'Walk the KB: drain pending queue → promote to sources → relink. No external fetches and no stub conclusions — synthesis lands in conclusions/ only via `conclude` or `complete-research` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
+		description: 'Walk the KB: drain pending queue → promote to sources → relink. No external fetches and no stub conclusions — synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
 		inputSchema: {
 			count: z.number().optional().describe('Max pending notes to drain (default: 20)'),
 		},
@@ -81,13 +81,6 @@ export function register(server, notify) {
 				let patched = 0;
 				for (const pf of pending) {
 					try {
-						const slug = pf.replace(/\.md$/, '');
-						const srcPath = join(fs.sources(), pf);
-						if (existsSync(srcPath)) {
-							if (autofill_frontmatter(srcPath)) patched++;
-							delete_pending(pf);
-							continue;
-						}
 						const { question, context, sources: pending_sources } = read_pending(pf);
 
 						const ctx = await query_graph(question, fs.kb_graph(), 'sources');
@@ -96,13 +89,14 @@ export function register(server, notify) {
 							context ? `## Context\n${context}` : '',
 							ctx ? `## Graph Context\n\`\`\`\n${ctx.trim()}\n\`\`\`` : '',
 						].filter(Boolean).join('\n\n');
-						save_note(slug, source_body, {
+						const newSrcPath = save_note(question, source_body, {
 							dir: fs.sources(),
 							tags: ['source'],
 							type: 'source',
 							related: pending_sources,
+							id_filename: true,
 						});
-						autofill_frontmatter(join(fs.sources(), `${slug}.md`));
+						autofill_frontmatter(newSrcPath);
 
 						delete_pending(pf);
 						promoted++;

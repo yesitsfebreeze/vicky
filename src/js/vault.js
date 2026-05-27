@@ -3,30 +3,6 @@ import { join } from 'path';
 import * as fs from './fs.js';
 
 
-export function search(dir, query) {
-	const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-	const hits = [];
-	function walk(d) {
-		if (!existsSync(d)) return;
-		for (const e of readdirSync(d, { withFileTypes: true })) {
-			if (e.name.startsWith('.')) continue;
-			const full = join(d, e.name);
-			if (e.isDirectory()) { walk(full); continue; }
-			if (!e.name.endsWith('.md')) continue;
-			const text = readFileSync(full, 'utf8');
-			const lower = text.toLowerCase();
-			const score = terms.filter(t => lower.includes(t)).length;
-			if (!score) continue;
-			const lines = text.split('\n');
-			const idx = lines.findIndex(l => terms.some(t => l.toLowerCase().includes(t)));
-			hits.push({ file: e.name, score, snippet: lines.slice(Math.max(0, idx - 1), idx + 5).join('\n') });
-		}
-	}
-	walk(dir);
-	hits.sort((a, b) => b.score - a.score);
-	return hits.slice(0, 5).map(h => `### ${h.file}\n${h.snippet}`).join('\n\n---\n\n') || null;
-}
-
 export function search_hits(dir, query, limit = 10) {
 	const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
 	if (!terms.length) return [];
@@ -59,13 +35,7 @@ export function search_hits(dir, query, limit = 10) {
 	return hits.slice(0, limit);
 }
 
-const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 60).replace(/\s+/g, '-');
-const safe_link = t => t.replace(/["'[\]|#^\\]/g, '').trim();
-
-function wikilink_block(heading, items) {
-	const links = items.map(t => `- [[${safe_link(t)}]]`).join('\n');
-	return `\n\n## ${heading}\n${links}\n`;
-}
+const safe_name = t => t.replace(/[^\w\s-]/g, '').trim().slice(0, 45).replace(/\s+/g, '-');
 
 function strip_section(body, heading) {
 	const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, 'g');
@@ -76,23 +46,49 @@ function regen_body_sections(body, sources, related) {
 	let out = body;
 	out = strip_section(out, 'Sources');
 	out = strip_section(out, 'Related');
-	if (sources.length) out += wikilink_block('Sources', sources);
-	if (related.length) out += wikilink_block('Related', related);
 	return out;
 }
 
 function frontmatter_links(key, items) {
 	if (!items?.length) return '';
-	return `\n${key}:\n${items.map(t => `  - "[[${safe_link(t)}]]"`).join('\n')}`;
+	return `\n${key}:\n${items.map(t => `  - "[[${safe_name(t)}]]"`).join('\n')}`;
 }
 
-export function save_note(title, body, { dir = fs.sources(), tags = [], type = 'source', sources = [], related = [] } = {}) {
-	const date = new Date().toISOString().split('T')[0];
-	const safe = safe_name(title);
+export function gen_source_id(dir = fs.sources()) {
+	const d = new Date();
+	const yy = String(d.getFullYear()).slice(-2);
+	const mm = String(d.getMonth() + 1).padStart(2, '0');
+	const dd = String(d.getDate()).padStart(2, '0');
+	const stamp = `${yy}${mm}${dd}`;
 	mkdirSync(dir, { recursive: true });
-	const path = join(dir, `${safe}.md`);
+	for (let i = 0; i < 100; i++) {
+		const hex = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+		const id = `${stamp}-${hex}`;
+		if (!existsSync(join(dir, `${id}.md`))) return id;
+	}
+	throw new Error(`gen_source_id: 100 collisions in ${dir}`);
+}
+
+function yaml_title(title) {
+	if (/[:"]/.test(title)) return `"${title.replace(/"/g, '\\"')}"`;
+	return title;
+}
+
+export function save_note(title, body, { dir = fs.sources(), tags = [], type = 'source', sources = [], related = [], id_filename = false } = {}) {
+	const date = new Date().toISOString().split('T')[0];
+	mkdirSync(dir, { recursive: true });
+	let path, title_field;
+	if (id_filename) {
+		const id = gen_source_id(dir);
+		path = join(dir, `${id}.md`);
+		title_field = yaml_title(title);
+	} else {
+		const safe = safe_name(title);
+		path = join(dir, `${safe}.md`);
+		title_field = safe;
+	}
 	const frontmatter = [
-		`title: ${safe}`,
+		`title: ${title_field}`,
 		`date: ${date}`,
 		`type: ${type}`,
 		`tags: [${tags.join(', ')}]`,
@@ -103,9 +99,6 @@ export function save_note(title, body, { dir = fs.sources(), tags = [], type = '
 	writeFileSync(path, `---\n${frontmatter}\n---\n\n${body_with_links}\n`);
 	return path;
 }
-
-export const save_research = (question, body) =>
-	save_note(question, body, { dir: fs.research(), tags: ['research'], type: 'research' });
 
 export function enqueue_research(question, { context = '', requested_by = '', priority = 'med', sources = [] } = {}) {
 	const date = new Date().toISOString().split('T')[0];
@@ -122,8 +115,7 @@ export function enqueue_research(question, { context = '', requested_by = '', pr
 		`priority: ${priority}`,
 		`tags: [research, pending]`,
 	].join('\n') + frontmatter_links('sources', sources);
-	const body = `---\n${frontmatter}\n---\n\n## Question\n${question}\n\n## Context\n${context}\n`
-		+ (sources.length ? `\n## Sources\n${sources.map(s => `- [[${safe_link(s)}]]`).join('\n')}\n` : '');
+	const body = `---\n${frontmatter}\n---\n\n## Question\n${question}\n\n## Context\n${context}\n`;
 	writeFileSync(path, body);
 	return path;
 }
@@ -154,47 +146,11 @@ export function delete_pending(file) {
 	if (existsSync(fp)) unlinkSync(fp);
 }
 
-export function list_con_files() {
-	if (!existsSync(fs.conclusions())) return [];
-	return readdirSync(fs.conclusions()).filter(f => f.endsWith('.md') && !f.startsWith('README') && !f.startsWith('_'));
-}
-
-
-export function find_isolated(n = 20) {
-	return list_con_files()
-		.filter(f => {
-			const text = readFileSync(join(fs.conclusions(), f), 'utf8');
-			return !text.includes('[[') && !text.includes('## Research');
-		})
-		.slice(0, n);
-}
-
-
-export function extract_files_from_graph(graphText) {
-	if (!graphText) return [];
-	return [...graphText.matchAll(/^NODE\s+(.+?)\.md\s+\[/gm)]
-		.map(m => m[1].trim());
-}
-
-const RS = '<!-- related:start -->';
-const RE = '<!-- related:end -->';
-
-export function patch_related(filePath, links) {
-	let content = readFileSync(filePath, 'utf8');
-	const block = links.length
-		? `${RS}\n## Related\n${links.map(t => `- [[${t}]]`).join('\n')}\n${RE}`
-		: '';
-	const re = new RegExp(`${RS}[\\s\\S]*?${RE}`, 'g');
-	content = re.test(content) ? content.replace(re, block)
-		: block ? content.trimEnd() + '\n\n' + block + '\n' : content;
-	writeFileSync(filePath, content);
-}
-
 export function patch_frontmatter_sources(filePath, sources) {
 	let content = readFileSync(filePath, 'utf8');
 	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	const value = sources.length
-		? `sources:\n${sources.map(s => `  - "[[${safe_link(s)}]]"`).join('\n')}`
+		? `sources:\n${sources.map(s => `  - "[[${safe_name(s)}]]"`).join('\n')}`
 		: '';
 	if (fm) {
 		let body = fm[1].replace(/^sources:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();
@@ -210,7 +166,7 @@ export function patch_frontmatter_related(filePath, links) {
 	let content = readFileSync(filePath, 'utf8');
 	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	const value = links.length
-		? `related:\n${links.map(t => `  - "[[${safe_link(t)}]]"`).join('\n')}`
+		? `related:\n${links.map(t => `  - "[[${safe_name(t)}]]"`).join('\n')}`
 		: '';
 	if (fm) {
 		// Remove existing related: block (key + all indented list lines below it)
@@ -236,20 +192,6 @@ export function absorb_source(name) {
 	return to;
 }
 
-export function restore_source(name) {
-	const slug = name.replace(/\.md$/, '');
-	const from = join(fs.absorbed(), `${slug}.md`);
-	const to = join(fs.sources(), `${slug}.md`);
-	if (!existsSync(from)) throw new Error(`absorbed source not found: ${from}`);
-	renameSync(from, to);
-	return to;
-}
-
-export function list_absorbed() {
-	if (!existsSync(fs.absorbed())) return [];
-	return readdirSync(fs.absorbed()).filter(f => f.endsWith('.md'));
-}
-
 export function parse_fm_list(content, key) {
 	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	if (!fm) return [];
@@ -271,7 +213,7 @@ export function patch_frontmatter_derived_from(filePath, slugs) {
 	let content = readFileSync(filePath, 'utf8');
 	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	const value = slugs.length
-		? `derived_from:\n${slugs.map(s => `  - ${safe_link(s)}`).join('\n')}`
+		? `derived_from:\n${slugs.map(s => `  - ${safe_name(s)}`).join('\n')}`
 		: '';
 	if (fm) {
 		let body = fm[1].replace(/^derived_from:(\n[ \t]+[^\n]*)*/m, '').replace(/\n{2,}/g, '\n').trimEnd();

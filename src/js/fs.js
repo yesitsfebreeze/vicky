@@ -14,7 +14,6 @@ export const root         = () => process.env.VICKY_ROOT || 'vicky';
 export const sources      = () => join(root(), 'sources');
 export const absorbed     = () => join(sources(), '.absorbed');
 export const conclusions  = () => join(root(), 'conclusions');
-export const research     = () => join(root(), 'research');
 export const pending      = () => join(root(), 'pending');
 export const graphs       = () => join(root(), 'graphs');
 export const graphify_out = () => join(root(), '.graphify');

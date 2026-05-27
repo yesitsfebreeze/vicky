@@ -47,7 +47,6 @@ __export(fs_exports, {
   obsidian_cli: () => obsidian_cli,
   pending: () => pending,
   report_md: () => report_md,
-  research: () => research,
   root: () => root,
   sources: () => sources,
   template_dir: () => template_dir,
@@ -56,7 +55,7 @@ __export(fs_exports, {
 });
 import { dirname, join, basename, resolve } from "path";
 import { fileURLToPath } from "url";
-var SKILL_DIR, root, sources, absorbed, conclusions, research, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
+var SKILL_DIR, root, sources, absorbed, conclusions, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
 var init_fs = __esm({
   "js/fs.js"() {
     SKILL_DIR = dirname(fileURLToPath(import.meta.url));
@@ -64,7 +63,6 @@ var init_fs = __esm({
     sources = () => join(root(), "sources");
     absorbed = () => join(sources(), ".absorbed");
     conclusions = () => join(root(), "conclusions");
-    research = () => join(root(), "research");
     pending = () => join(root(), "pending");
     graphs = () => join(root(), "graphs");
     graphify_out = () => join(root(), ".graphify");
@@ -114,7 +112,7 @@ function banner() {
   };
 }
 async function init() {
-  for (const directory of [sources(), conclusions(), pending(), graphs()]) {
+  for (const directory of [sources(), conclusions()]) {
     if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
   }
   copy_tree(template_dir(), ".");
@@ -22259,14 +22257,6 @@ function search_hits(dir, query, limit = 10) {
   hits.sort((a, b) => b.score - a.score);
   return hits.slice(0, limit);
 }
-function wikilink_block(heading, items) {
-  const links = items.map((t) => `- [[${safe_link(t)}]]`).join("\n");
-  return `
-
-## ${heading}
-${links}
-`;
-}
 function strip_section(body, heading) {
   const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, "g");
   return body.replace(re, "").trimEnd();
@@ -22275,23 +22265,47 @@ function regen_body_sections(body, sources2, related) {
   let out = body;
   out = strip_section(out, "Sources");
   out = strip_section(out, "Related");
-  if (sources2.length) out += wikilink_block("Sources", sources2);
-  if (related.length) out += wikilink_block("Related", related);
   return out;
 }
 function frontmatter_links(key, items) {
   if (!items?.length) return "";
   return `
 ${key}:
-${items.map((t) => `  - "[[${safe_link(t)}]]"`).join("\n")}`;
+${items.map((t) => `  - "[[${safe_name(t)}]]"`).join("\n")}`;
 }
-function save_note(title, body, { dir = sources(), tags = [], type = "source", sources: sources2 = [], related = [] } = {}) {
-  const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const safe = safe_name(title);
+function gen_source_id(dir = sources()) {
+  const d = /* @__PURE__ */ new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const stamp = `${yy}${mm}${dd}`;
   mkdirSync2(dir, { recursive: true });
-  const path = join4(dir, `${safe}.md`);
+  for (let i = 0; i < 100; i++) {
+    const hex = Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
+    const id = `${stamp}-${hex}`;
+    if (!existsSync3(join4(dir, `${id}.md`))) return id;
+  }
+  throw new Error(`gen_source_id: 100 collisions in ${dir}`);
+}
+function yaml_title(title) {
+  if (/[:"]/.test(title)) return `"${title.replace(/"/g, '\\"')}"`;
+  return title;
+}
+function save_note(title, body, { dir = sources(), tags = [], type = "source", sources: sources2 = [], related = [], id_filename = false } = {}) {
+  const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  mkdirSync2(dir, { recursive: true });
+  let path, title_field;
+  if (id_filename) {
+    const id = gen_source_id(dir);
+    path = join4(dir, `${id}.md`);
+    title_field = yaml_title(title);
+  } else {
+    const safe = safe_name(title);
+    path = join4(dir, `${safe}.md`);
+    title_field = safe;
+  }
   const frontmatter = [
-    `title: ${safe}`,
+    `title: ${title_field}`,
     `date: ${date3}`,
     `type: ${type}`,
     `tags: [${tags.join(", ")}]`
@@ -22329,10 +22343,7 @@ ${question}
 
 ## Context
 ${context}
-` + (sources2.length ? `
-## Sources
-${sources2.map((s) => `- [[${safe_link(s)}]]`).join("\n")}
-` : "");
+`;
   writeFileSync2(path, body);
   return path;
 }
@@ -22363,7 +22374,7 @@ function patch_frontmatter_sources(filePath, sources2) {
   let content = readFileSync2(filePath, "utf8");
   const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   const value = sources2.length ? `sources:
-${sources2.map((s) => `  - "[[${safe_link(s)}]]"`).join("\n")}` : "";
+${sources2.map((s) => `  - "[[${safe_name(s)}]]"`).join("\n")}` : "";
   if (fm) {
     let body = fm[1].replace(/^sources:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
     if (value) body += "\n" + value;
@@ -22383,7 +22394,7 @@ function patch_frontmatter_related(filePath, links) {
   let content = readFileSync2(filePath, "utf8");
   const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   const value = links.length ? `related:
-${links.map((t) => `  - "[[${safe_link(t)}]]"`).join("\n")}` : "";
+${links.map((t) => `  - "[[${safe_name(t)}]]"`).join("\n")}` : "";
   if (fm) {
     let body = fm[1].replace(/^related:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
     if (value) body += "\n" + value;
@@ -22434,7 +22445,7 @@ function patch_frontmatter_derived_from(filePath, slugs) {
   let content = readFileSync2(filePath, "utf8");
   const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   const value = slugs.length ? `derived_from:
-${slugs.map((s) => `  - ${safe_link(s)}`).join("\n")}` : "";
+${slugs.map((s) => `  - ${safe_name(s)}`).join("\n")}` : "";
   if (fm) {
     let body = fm[1].replace(/^derived_from:(\n[ \t]+[^\n]*)*/m, "").replace(/\n{2,}/g, "\n").trimEnd();
     if (value) body += "\n" + value;
@@ -22450,12 +22461,11 @@ ${value}
   }
   writeFileSync2(filePath, content);
 }
-var safe_name, safe_link;
+var safe_name;
 var init_vault = __esm({
   "js/vault.js"() {
     init_fs();
-    safe_name = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 60).replace(/\s+/g, "-");
-    safe_link = (t) => t.replace(/["'[\]|#^\\]/g, "").trim();
+    safe_name = (t) => t.replace(/[^\w\s-]/g, "").trim().slice(0, 45).replace(/\s+/g, "-");
   }
 });
 
@@ -22736,7 +22746,7 @@ var init_research_gap = __esm({
 });
 
 // js/tools/remember.js
-import { join as join5 } from "path";
+import { join as join5, basename as basename3 } from "path";
 function register3(server2) {
   server2.registerTool("remember", {
     description: "Save key points or findings into the source vault. Conclusions are not auto-spawned \u2014 call `conclude` once you have a synthesised takeaway.",
@@ -22755,8 +22765,10 @@ function register3(server2) {
     }
     const dir = folder ? join5(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
-    const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related });
-    return { content: [{ type: "text", text: `Saved: ${path}` }] };
+    const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related, id_filename: true });
+    const slug = basename3(path).replace(/\.md$/, "");
+    return { content: [{ type: "text", text: `Saved: ${path}
+ID: ${slug}` }] };
   });
 }
 var init_remember = __esm({
@@ -22778,7 +22790,7 @@ function register4(server2) {
       content: external_exports.string().describe("Synthesised takeaway (markdown)"),
       folder: external_exports.string().optional().describe('Subfolder inside vicky/conclusions (e.g. "perf", "physics")'),
       tags: external_exports.array(external_exports.string()).optional().describe("Extra tags merged with `conclusion`"),
-      sources: external_exports.array(external_exports.string()).optional().describe("Source note titles this conclusion derives from \u2014 required for the graph edges. Pass at least one."),
+      sources: external_exports.array(external_exports.string()).optional().describe("Source IDs (hash filenames from remember/learn responses) this conclusion derives from. Pass at least one. Written as [[wikilinks]] in frontmatter + body."),
       related: external_exports.array(external_exports.string()).optional().describe("Sibling conclusions or related notes")
     }
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
@@ -22965,7 +22977,6 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { join as join8 } from "path";
 import { existsSync as existsSync6, readFileSync as readFileSync5, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync5 } from "fs";
 import { execSync } from "child_process";
 function git_mtime(path) {
@@ -23016,7 +23027,7 @@ function est_learn_seconds() {
 }
 function register6(server2, notify2) {
   server2.registerTool("learn", {
-    description: "Walk the KB: drain pending queue \u2192 promote to sources \u2192 relink. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` or `complete-research` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
+    description: "Walk the KB: drain pending queue \u2192 promote to sources \u2192 relink. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
     inputSchema: {
       count: external_exports.number().optional().describe("Max pending notes to drain (default: 20)")
     }
@@ -23048,13 +23059,6 @@ function register6(server2, notify2) {
         let patched = 0;
         for (const pf of pending2) {
           try {
-            const slug = pf.replace(/\.md$/, "");
-            const srcPath = join8(sources(), pf);
-            if (existsSync6(srcPath)) {
-              if (autofill_frontmatter(srcPath)) patched++;
-              delete_pending(pf);
-              continue;
-            }
             const { question, context, sources: pending_sources } = read_pending(pf);
             const ctx = await query_graph(question, kb_graph(), "sources");
             const source_body = [
@@ -23067,13 +23071,14 @@ ${context}` : "",
 ${ctx.trim()}
 \`\`\`` : ""
             ].filter(Boolean).join("\n\n");
-            save_note(slug, source_body, {
+            const newSrcPath = save_note(question, source_body, {
               dir: sources(),
               tags: ["source"],
               type: "source",
-              related: pending_sources
+              related: pending_sources,
+              id_filename: true
             });
-            autofill_frontmatter(join8(sources(), `${slug}.md`));
+            autofill_frontmatter(newSrcPath);
             delete_pending(pf);
             promoted++;
           } catch (e) {
@@ -23117,7 +23122,7 @@ var init_learn = __esm({
 
 // js/tools/enqueue.js
 import { existsSync as existsSync7 } from "fs";
-import { join as join9 } from "path";
+import { join as join8 } from "path";
 function validate_frontmatter(fm) {
   const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
   if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
@@ -23153,7 +23158,7 @@ function register7(server2) {
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
     const slug = safe_name2(question);
-    const path = join9(pending(), `${slug}.md`);
+    const path = join8(pending(), `${slug}.md`);
     if (existsSync7(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
     }
@@ -23212,135 +23217,8 @@ var init_web_research = __esm({
   }
 });
 
-// js/tools/promote.js
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync4, unlinkSync as unlinkSync2, existsSync as existsSync8 } from "fs";
-import { join as join10 } from "path";
-function register9(server2) {
-  server2.registerTool("promote", {
-    description: "Move a research item from research/ to conclusions/ after findings added",
-    inputSchema: {
-      file: external_exports.string().describe("Filename (with or without .md extension)"),
-      type: external_exports.enum(["research", "conclusion"]).optional().describe('Type: "research" (default) to "conclusion"')
-    }
-  }, async ({ file, type = "research" }) => {
-    await ensure_init();
-    const filename = file.endsWith(".md") ? file : `${file}.md`;
-    const fromDir = type === "research" ? research() : conclusions();
-    const toDir = type === "research" ? conclusions() : research();
-    const fromPath = join10(fromDir, filename);
-    const toPath = join10(toDir, filename);
-    if (!existsSync8(fromPath)) {
-      return { content: [{
-        type: "text",
-        text: `Error: File not found at ${fromPath}`
-      }] };
-    }
-    let content = readFileSync6(fromPath, "utf8");
-    const oldType = type === "research" ? "research" : "conclusion";
-    const newType = type === "research" ? "conclusion" : "research";
-    content = content.replace(/^type: research$/m, `type: ${newType}`);
-    content = content.replace(/^type: conclusion$/m, `type: ${newType}`);
-    if (type === "research") {
-      content = content.replace(/from-queue/g, "");
-      content = content.replace(/tags: \[\s*,\s*/g, "tags: [");
-      content = content.replace(/,\s*\]/g, "]");
-    }
-    writeFileSync4(toPath, content, "utf8");
-    unlinkSync2(fromPath);
-    return { content: [{
-      type: "text",
-      text: `Promoted: ${fromPath} \u2192 ${toPath}`
-    }] };
-  });
-}
-var init_promote = __esm({
-  "js/tools/promote.js"() {
-    init_zod();
-    init_fs();
-    init_init();
-  }
-});
-
-// js/tools/complete-research.js
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync5, unlinkSync as unlinkSync3, existsSync as existsSync9, readdirSync as readdirSync6 } from "fs";
-import { join as join11 } from "path";
-function register10(server2) {
-  server2.registerTool("complete-research", {
-    description: "Mark research as complete: checks for ## Research section, validates confidence, auto-promotes to conclusions",
-    inputSchema: {
-      file: external_exports.string().optional().describe("Filename to complete (with or without .md). If omitted, processes all research/ files with ## Research"),
-      minConfidence: external_exports.number().optional().default(0.5).describe("Min confidence (0-1): checks ## Research section length. 0.5 = at least 500 chars")
-    }
-  }, async ({ file, minConfidence = 0.5 }) => {
-    await ensure_init();
-    const results = [];
-    let filesToProcess = [];
-    if (file) {
-      const filename = file.endsWith(".md") ? file : `${file}.md`;
-      if (existsSync9(join11(research(), filename))) {
-        filesToProcess = [filename];
-      } else {
-        return { content: [{
-          type: "text",
-          text: `Error: File not found: ${filename}`
-        }] };
-      }
-    } else {
-      if (existsSync9(research())) {
-        filesToProcess = readdirSync6(research()).filter((f) => f.endsWith(".md"));
-      }
-    }
-    for (const filename of filesToProcess) {
-      const fromPath = join11(research(), filename);
-      const toPath = join11(conclusions(), filename);
-      const content = readFileSync7(fromPath, "utf8");
-      const researchMatch = content.match(/^## Research\s*\n([\s\S]*?)(?=^##|$)/m);
-      if (!researchMatch) {
-        results.push({ file: filename, status: "skip", reason: "No ## Research section found" });
-        continue;
-      }
-      const researchBody = researchMatch[1].trim();
-      const confidence = Math.min(1, researchBody.length / 500);
-      if (confidence < minConfidence) {
-        results.push({
-          file: filename,
-          status: "skip",
-          reason: `Low confidence: ${(confidence * 100).toFixed(0)}% (need ${(minConfidence * 100).toFixed(0)}%)`
-        });
-        continue;
-      }
-      let promoted = content.replace(/^type: research$/m, "type: conclusion");
-      promoted = promoted.replace(/,?\s*from-queue\s*,?/g, ",");
-      promoted = promoted.replace(/\[\s*,/g, "[");
-      promoted = promoted.replace(/,\s*\]/g, "]");
-      promoted = promoted.replace(/\[\s*\]/g, "[]");
-      writeFileSync5(toPath, promoted, "utf8");
-      unlinkSync3(fromPath);
-      results.push({
-        file: filename,
-        status: "promoted",
-        confidence: (confidence * 100).toFixed(0) + "%"
-      });
-    }
-    const summary = results.map((r) => `- ${r.file}: ${r.status}${r.reason ? ` (${r.reason})` : ""}${r.confidence ? ` [${r.confidence}]` : ""}`).join("\n");
-    return { content: [{
-      type: "text",
-      text: `Complete research results:
-
-${summary}`
-    }] };
-  });
-}
-var init_complete_research = __esm({
-  "js/tools/complete-research.js"() {
-    init_zod();
-    init_fs();
-    init_init();
-  }
-});
-
 // js/tools/dashboard.js
-function register11(server2) {
+function register9(server2) {
   server2.registerTool("dashboard", {
     description: "Render the KB dashboard (counts, recent additions, hubs, pending queue, orphans, stale conclusions, tag cloud) via Obsidian + Dataview. Requires the vault to be open in Obsidian with the Dataview plugin enabled. For ad-hoc queries use the `dql` tool.",
     inputSchema: {
@@ -23366,7 +23244,7 @@ var init_dashboard2 = __esm({
 });
 
 // js/tools/dql.js
-import { basename as basename3 } from "path";
+import { basename as basename4 } from "path";
 function docs() {
   const r = root().replace(/\\/g, "/").replace(/\/+$/, "");
   const p = (folder) => r === "" || r === "." ? `"${folder}"` : `"${r}/${folder}"`;
@@ -23409,7 +23287,7 @@ Examples:
   SORT choice(priority = "high", 0, 1) ASC`;
 }
 function cell2(value) {
-  if (value && typeof value === "object" && value.path) return basename3(value.path, ".md");
+  if (value && typeof value === "object" && value.path) return basename4(value.path, ".md");
   if (Array.isArray(value)) return value.map(cell2).join(" ");
   return value == null ? "" : String(value);
 }
@@ -23439,7 +23317,7 @@ function format_result(result, query_text) {
 ${JSON.stringify(result, null, 2)}
 \`\`\``;
 }
-function register12(server2) {
+function register10(server2) {
   server2.registerTool("dql", {
     description: 'Run a Dataview Query Language (DQL) query against the vault via Obsidian. Requires the vault to be open in Obsidian with the Dataview plugin enabled. Call with query="help" to get the syntax reference.',
     inputSchema: {
@@ -23470,7 +23348,7 @@ var init_dql = __esm({
 });
 
 // js/tools/job-status.js
-function register13(server2) {
+function register11(server2) {
   server2.registerTool("job-status", {
     description: "Poll the status of a background job (learn, relink) by job_id. Returns running|done|failed|unknown, progress.phase, counts, and elapsed_ms.",
     inputSchema: {
@@ -23500,29 +23378,29 @@ var init_job_status = __esm({
 });
 
 // js/tools/crystalize.js
-import { existsSync as existsSync10, readFileSync as readFileSync8, readdirSync as readdirSync7 } from "fs";
-import { join as join12 } from "path";
+import { existsSync as existsSync8, readFileSync as readFileSync6, readdirSync as readdirSync6 } from "fs";
+import { join as join9 } from "path";
 function find_conclusion(name) {
   const slug = name.replace(/\.md$/, "");
   const stack = [conclusions()];
   while (stack.length) {
     const d = stack.pop();
-    if (!existsSync10(d)) continue;
-    for (const e of readdirSync7(d, { withFileTypes: true })) {
+    if (!existsSync8(d)) continue;
+    for (const e of readdirSync6(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join12(d, e.name);
+      const full = join9(d, e.name);
       if (e.isDirectory()) stack.push(full);
       else if (e.name === `${slug}.md`) return full;
     }
   }
   return null;
 }
-function register14(server2) {
+function register12(server2) {
   server2.registerTool("crystalize", {
     description: "Condense KB by absorbing source(s) into a conclusion. Moves source files to vicky/sources/.absorbed/ (hidden dotfolder, excluded from graph) and appends them to the conclusion derived_from: frontmatter. Absorbed slugs are removed from sources:. dry_run=true previews moves. Run /vicky:learn after to rebuild graph.",
     inputSchema: {
       conclusion: external_exports.string().describe("Conclusion title or slug to crystalize into"),
-      absorb: external_exports.array(external_exports.string()).min(1).describe("Source slugs (with or without .md) to absorb"),
+      absorb: external_exports.array(external_exports.string()).min(1).describe("Source IDs (hash filenames, with or without .md) to absorb into the conclusion derived_from frontmatter."),
       dry_run: external_exports.boolean().optional().describe("Preview moves only, default false")
     }
   }, async ({ conclusion, absorb, dry_run = false }) => {
@@ -23531,15 +23409,15 @@ function register14(server2) {
     if (!concPath) {
       return { content: [{ type: "text", text: `Error: conclusion not found: ${conclusion}` }] };
     }
-    const concContent = readFileSync8(concPath, "utf8");
+    const concContent = readFileSync6(concPath, "utf8");
     const existing_sources = parse_fm_list(concContent, "sources");
     const existing_derived = parse_fm_list(concContent, "derived_from");
     const moves = [];
     const missing = [];
     for (const name of absorb) {
       const slug = name.replace(/\.md$/, "");
-      const srcPath = join12(sources(), `${slug}.md`);
-      if (!existsSync10(srcPath)) {
+      const srcPath = join9(sources(), `${slug}.md`);
+      if (!existsSync8(srcPath)) {
         missing.push(slug);
         continue;
       }
@@ -23582,7 +23460,7 @@ var mcp_server_exports = {};
 __export(mcp_server_exports, {
   config: () => config2
 });
-import { readFileSync as readFileSync9 } from "fs";
+import { readFileSync as readFileSync7 } from "fs";
 var config2, server, notify, transport;
 var init_mcp_server2 = __esm({
   async "js/mcp-server.js"() {
@@ -23596,8 +23474,6 @@ var init_mcp_server2 = __esm({
     init_learn();
     init_enqueue();
     init_web_research();
-    init_promote();
-    init_complete_research();
     init_dashboard2();
     init_dql();
     init_job_status();
@@ -23609,13 +23485,13 @@ var init_mcp_server2 = __esm({
     };
     try {
       const configPath = "./vicky.config.json";
-      const configText = readFileSync9(configPath, "utf8");
+      const configText = readFileSync7(configPath, "utf8");
       config2 = { ...config2, ...JSON.parse(configText) };
     } catch (_) {
     }
     server = new McpServer({
       name: "vicky",
-      version: "0.3.0",
+      version: "0.9.0",
       description: config2.description || "Demand-driven KB: auto-enrich via research-gap"
     });
     notify = (level, data) => {
@@ -23639,8 +23515,6 @@ var init_mcp_server2 = __esm({
     register10(server);
     register11(server);
     register12(server);
-    register13(server);
-    register14(server);
     transport = new StdioServerTransport();
     await server.connect(transport);
   }
@@ -23655,7 +23529,7 @@ if (mode === "init") {
 } else if (mode === "dashboard") {
   const args = process.argv.slice(3);
   const { build_dashboard: build_dashboard2 } = await Promise.resolve().then(() => (init_dashboard(), dashboard_exports));
-  const { mkdirSync: mkdirSync3, writeFileSync: writeFileSync6 } = await import("fs");
+  const { mkdirSync: mkdirSync3, writeFileSync: writeFileSync4 } = await import("fs");
   const fs = await Promise.resolve().then(() => (init_fs(), fs_exports));
   try {
     const { data, markdown } = build_dashboard2();
@@ -23663,7 +23537,7 @@ if (mode === "init") {
       console.log(JSON.stringify(data, null, 2));
     } else if (args.includes("--write")) {
       mkdirSync3(fs.root(), { recursive: true });
-      writeFileSync6(fs.report_md(), markdown);
+      writeFileSync4(fs.report_md(), markdown);
       console.log(fs.report_md());
     } else {
       console.log(markdown);
