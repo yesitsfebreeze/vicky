@@ -27,7 +27,7 @@ function parse_related(raw, selfName) {
 	const self_slug = slugify(selfName);
 	return [...(raw ?? '').matchAll(/^NODE\s+(.+?)\s+\[/gm)]
 		.map(m => slugify(m[1]))
-		.filter(t => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith('code:') && !t.startsWith('Graph'));
+		.filter(t => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith('code:'));
 }
 
 export async function relink_dir(dir, graphPath, notify) {

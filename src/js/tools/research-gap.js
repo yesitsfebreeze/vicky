@@ -4,7 +4,7 @@ import { query_graph_hits } from '../graph.js';
 import { search_hits, enqueue_research, list_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
 import { should_auto_enqueue, get_workflow_for } from '../workflow.js';
-import { slugify, match_prefix } from '../slug.js';
+import { slugify } from '../slug.js';
 
 const TOP_K = 10;
 
@@ -65,7 +65,7 @@ export function register(server, notify) {
 			if (should) {
 				const pending = list_pending();
 				const q_slug = slugify(question);
-				already_pending = pending.some(f => match_prefix(q_slug, f));
+				already_pending = pending.some(f => slugify(f) === q_slug);
 				if (!already_pending) {
 					enqueue_research(question, { requested_by: workflow });
 					notify('info', `vicky: auto-enqueued research for "${question}" (workflow: ${workflow})`);
