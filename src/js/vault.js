@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync, renameSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import * as fs from './fs.js';
 
 
@@ -182,12 +182,38 @@ export function patch_frontmatter_related(filePath, links) {
 
 // --- crystalize support ---
 
+// Recursive walk under sources/, returns full path or null.
+// Excludes .absorbed/ (already-absorbed sources must not collide with live ones).
+export function find_source(name) {
+	const slug = name.replace(/\.md$/, '');
+	const target = `${slug}.md`;
+	const root = fs.sources();
+	const absorbed_root = fs.absorbed();
+	const stack = [root];
+	while (stack.length) {
+		const d = stack.pop();
+		if (!existsSync(d)) continue;
+		// Skip the .absorbed/ subtree entirely.
+		if (d === absorbed_root) continue;
+		for (const e of readdirSync(d, { withFileTypes: true })) {
+			// Skip dotfiles + dotdirs (covers .absorbed at every depth).
+			if (e.name.startsWith('.')) continue;
+			const full = join(d, e.name);
+			if (e.isDirectory()) { stack.push(full); continue; }
+			if (e.name === target) return full;
+		}
+	}
+	return null;
+}
+
 export function absorb_source(name) {
 	const slug = name.replace(/\.md$/, '');
-	const from = join(fs.sources(), `${slug}.md`);
-	const to = join(fs.absorbed(), `${slug}.md`);
-	if (!existsSync(from)) throw new Error(`source not found: ${from}`);
-	mkdirSync(fs.absorbed(), { recursive: true });
+	const from = find_source(slug);
+	if (!from) throw new Error(`source not found: ${slug}`);
+	// Preserve topic subdir under .absorbed/. e.g. sources/phynite/foo.md → sources/.absorbed/phynite/foo.md.
+	const rel = from.slice(fs.sources().length).replace(/^[\\/]+/, '');
+	const to = join(fs.absorbed(), rel);
+	mkdirSync(dirname(to), { recursive: true });
 	renameSync(from, to);
 	return to;
 }

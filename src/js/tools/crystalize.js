@@ -4,6 +4,7 @@ import { join } from 'path';
 import * as fs from '../fs.js';
 import {
 	absorb_source,
+	find_source,
 	patch_frontmatter_derived_from,
 	patch_frontmatter_sources,
 	parse_fm_list,
@@ -49,8 +50,8 @@ export function register(server) {
 		const missing = [];
 		for (const name of absorb) {
 			const slug = name.replace(/\.md$/, '');
-			const srcPath = join(fs.sources(), `${slug}.md`);
-			if (!existsSync(srcPath)) { missing.push(slug); continue; }
+			const srcPath = find_source(slug);
+			if (!srcPath) { missing.push(slug); continue; }
 			moves.push(slug);
 		}
 
