@@ -1,4 +1,4 @@
-﻿import { test } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -141,7 +141,7 @@ test('render: header names the matched tags', () => {
 // ── collect_tags ──────────────────────────────────────────────────────────────
 
 test('collect_tags: returns empty Map for missing directory', async () => {
-	const result = collect_tags('/tmp/__definitely_does_not_exist_vicky_test__');
+	const result = collect_tags(join(tmpdir(), '__definitely_does_not_exist_vicky_test__'));
 	assert.equal(result.size, 0);
 });
 
@@ -260,6 +260,21 @@ test('collect_tags: filename stem used as title when frontmatter has no title', 
 		const notes = map.get('notitle');
 		assert.ok(notes, 'missing notitle tag');
 		assert.equal(notes[0].title, 'my-note', `expected stem fallback, got: ${notes[0].title}`);
+	} finally {
+		rmSync(tmp, { recursive: true });
+	}
+});
+
+test('collect_tags: BOM-prefixed note — snippet is body line not frontmatter', async () => {
+	const tmp = mkdtempSync(join(tmpdir(), 'vicky-tc-bom-'));
+	try {
+		// Write a conclusion file whose content begins with a UTF-8 BOM
+		const bomContent = '\uFEFF---\ntitle: BOM Note\ndate: 2026-05-28\ntype: conclusion\ntags: [bom]\n---\n\nReal body line.\n';
+		writeFileSync(join(tmp, 'bom-note.md'), bomContent, 'utf8');
+		const map = collect_tags(tmp);
+		const notes = map.get('bom');
+		assert.ok(notes, 'missing bom tag');
+		assert.equal(notes[0].snippet, 'Real body line.', `snippet leaked frontmatter: ${notes[0].snippet}`);
 	} finally {
 		rmSync(tmp, { recursive: true });
 	}

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * tag-context.js — scan conclusion notes for tags matching the user prompt,
  * and render a context block to inject into the answer.
  */
@@ -23,7 +23,7 @@ function escape_re(str) {
 
 /** Return the first non-empty, non-heading body line after frontmatter. */
 function extract_snippet(content) {
-	const lines = content.split('\n');
+	const lines = content.replace(/^\uFEFF/, '').split('\n');
 	let in_fm     = false;
 	let fm_closed = false;
 	for (let i = 0; i < lines.length; i++) {
@@ -57,7 +57,7 @@ export function collect_tags(dir = fs.conclusions()) {
 			if (entry.isDirectory()) { walk(full); continue; }
 			if (!entry.name.endsWith('.md')) continue;
 
-			const content = readFileSync(full, 'utf8');
+			const content = readFileSync(full, 'utf8').replace(/^\uFEFF/, '');
 			const slug    = entry.name.replace(/\.md$/, '');
 			const titles  = parse_fm_list(content, 'title');
 			const title   = titles[0] || slug;
@@ -108,14 +108,12 @@ export function render(matchedTags, tagMap) {
 	for (const tag of capped) {
 		const notes = tagMap.get(tag) || [];
 		const lines = [];
-		let count   = 0;
 		for (const note of notes) {
-			if (count >= MAX_NOTES) break;
+			if (lines.length >= MAX_NOTES) break;
 			if (seen.has(note.slug)) continue;
 			seen.add(note.slug);
 			const snip = note.snippet ? ': ' + note.snippet : '';
 			lines.push(`- [[${note.slug}]] — ${note.title}${snip}`);
-			count++;
 		}
 		if (lines.length) {
 			sections.push(`### #${tag}\n${lines.join('\n')}`);
