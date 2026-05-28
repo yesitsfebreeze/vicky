@@ -8,6 +8,7 @@
  *   node vicky.js dashboard      → markdown to stdout
  *   node vicky.js dashboard --write  → write Dashboard.report.md, print path
  *   node vicky.js dashboard --json   → raw Dataview JSON
+ *   node vicky.js tag-context    → UserPromptSubmit hook; reads {prompt} from stdin, prints matching conclusion notes
  */
 
 const mode = process.argv[2] || 'mcp';
@@ -36,9 +37,32 @@ if (mode === 'init') {
 		console.error(`dashboard: ${e.message}`);
 		process.exit(1);
 	}
+} else if (mode === 'tag-context') {
+	try {
+		const chunks = [];
+		for await (const chunk of process.stdin) {
+			chunks.push(chunk);
+		}
+		const raw = Buffer.concat(chunks).toString('utf8').trim();
+		let prompt = '';
+		try {
+			const payload = JSON.parse(raw);
+			prompt = (typeof payload.prompt === 'string') ? payload.prompt : '';
+		} catch (_) {
+			// non-JSON or empty stdin — silently skip
+		}
+		if (prompt) {
+			const { collect_tags, build_context } = await import('./hooks/tag-context.js');
+			const out = build_context(prompt, collect_tags());
+			if (out) console.log(out);
+		}
+	} catch (_) {
+		// swallow all errors — never block the prompt
+	}
+	process.exit(0);
 } else if (mode === 'mcp' || mode === undefined) {
 	await import('./mcp-server.js');
 } else {
-	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard`);
+	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context`);
 	process.exit(2);
 }
