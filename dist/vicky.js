@@ -283,6 +283,461 @@ var init_dashboard = __esm({
   }
 });
 
+// js/slug.js
+import { existsSync as existsSync2, readdirSync as readdirSync2 } from "node:fs";
+import { join as join3 } from "node:path";
+function slugify(input) {
+  if (input == null) return "";
+  let s = String(input).replace(/\.md$/i, "");
+  s = s.replace(/_/g, "-");
+  s = s.replace(/[^\w\s-]/g, "");
+  s = s.trim().replace(/\s+/g, "-");
+  s = s.replace(/-+/g, "-").replace(/^-/, "");
+  if (s.length > SLUG_MAX) s = s.slice(0, SLUG_MAX);
+  s = s.replace(/-+$/, "");
+  return s;
+}
+function match_prefix(slug, candidate) {
+  if (!slug || !candidate) return false;
+  const a = String(slug).replace(/\.md$/i, "").toLowerCase();
+  const b = String(candidate).replace(/\.md$/i, "").toLowerCase();
+  if (!a || !b) return false;
+  return a.startsWith(b) || b.startsWith(a);
+}
+function resolve_slug(stem, dir) {
+  if (!dir || !existsSync2(dir)) return null;
+  const target = slugify(stem);
+  if (!target) return null;
+  let exact = null;
+  let prefix = null;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries;
+    try {
+      entries = readdirSync2(d, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = join3(d, e.name);
+      if (e.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!e.name.endsWith(".md")) continue;
+      const base = e.name.replace(/\.md$/, "");
+      if (base.toLowerCase() === target.toLowerCase()) {
+        exact = full;
+        break;
+      }
+      if (!prefix && match_prefix(target, base)) {
+        prefix = full;
+      }
+    }
+    if (exact) break;
+  }
+  return exact ?? prefix;
+}
+var SLUG_MAX;
+var init_slug = __esm({
+  "js/slug.js"() {
+    SLUG_MAX = 45;
+  }
+});
+
+// js/vault.js
+import { existsSync as existsSync3, readFileSync, writeFileSync as writeFileSync2, readdirSync as readdirSync3, mkdirSync as mkdirSync2, unlinkSync, renameSync } from "fs";
+import { join as join4, dirname as dirname2 } from "path";
+function search_hits(dir, query, limit = 10) {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const root2 = root();
+  const hits = [];
+  function walk(d) {
+    if (!existsSync3(d)) return;
+    for (const e of readdirSync3(d, { withFileTypes: true })) {
+      if (e.name.startsWith(".")) continue;
+      const full = join4(d, e.name);
+      if (e.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!e.name.endsWith(".md")) continue;
+      const text = readFileSync(full, "utf8");
+      const lower = text.toLowerCase();
+      const matched = terms.filter((t) => lower.includes(t)).length;
+      const stem = e.name.replace(/\.md$/, "");
+      const stem_hit = terms.some((t) => match_prefix(t, stem));
+      if (!matched && !stem_hit) continue;
+      const lines = text.split("\n");
+      let body_start = 0;
+      if (lines[0] === "---") {
+        const fm_end = lines.findIndex((l, i) => i > 0 && l === "---");
+        if (fm_end >= 0) body_start = fm_end + 1;
+      }
+      const body_lines = lines.slice(body_start);
+      const body_idx = body_lines.findIndex((l) => terms.some((t) => l.toLowerCase().includes(t)));
+      const idx = body_idx < 0 ? -1 : body_start + body_idx;
+      const snippet = idx < 0 ? `(filename match: ${stem})` : lines.slice(Math.max(0, idx - 1), idx + 5).join("\n").slice(0, 200);
+      const coverage = matched / terms.length;
+      const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
+      const stem_bonus = stem_hit ? 0.2 : 0;
+      const score = +(coverage * 0.5 + position * 0.3 + stem_bonus).toFixed(4);
+      const rel = full.replace(/\\/g, "/");
+      const note_path = rel.startsWith(root2.replace(/\\/g, "/") + "/") ? rel : `${root2}/${rel}`.replace(/\\/g, "/");
+      hits.push({ note_path, score, inlinks: 0, snippet });
+    }
+  }
+  walk(dir);
+  hits.sort((a, b) => b.score - a.score);
+  return hits.slice(0, limit);
+}
+function strip_section(body, heading) {
+  const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, "g");
+  return body.replace(re, "").trimEnd();
+}
+function regen_body_sections(body, sources2, related) {
+  let out = body;
+  out = strip_section(out, "Sources");
+  out = strip_section(out, "Related");
+  return out;
+}
+function frontmatter_links(key, items) {
+  if (!items?.length) return "";
+  return `
+${key}:
+${items.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`;
+}
+function gen_source_id(dir = sources()) {
+  const d = /* @__PURE__ */ new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const stamp = `${yy}${mm}${dd}`;
+  mkdirSync2(dir, { recursive: true });
+  for (let i = 0; i < 100; i++) {
+    const hex = Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
+    const id = `${stamp}-${hex}`;
+    if (!existsSync3(join4(dir, `${id}.md`))) return id;
+  }
+  throw new Error(`gen_source_id: 100 collisions in ${dir}`);
+}
+function yaml_title(title) {
+  if (/[:"]/.test(title)) return `"${title.replace(/"/g, '\\"')}"`;
+  return title;
+}
+function strip_fm_key(fmBody, key) {
+  const re = new RegExp(`^${key}:[^\\n]*(?:\\n[ \\t]+[^\\n]*)*`, "m");
+  return fmBody.replace(re, "").replace(/\n{2,}/g, "\n").trimEnd();
+}
+function patch_fm_list(filePath, key, items, formatter) {
+  let content = readFileSync(filePath, "utf8");
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const value = items.length ? formatter(items) : "";
+  if (fm) {
+    let body = strip_fm_key(fm[1], key);
+    if (value) body += "\n" + value;
+    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${body.trim()}
+---`);
+  } else if (value) {
+    content = `---
+${value}
+---
+
+` + content;
+  }
+  writeFileSync2(filePath, content);
+}
+function save_note(title, body, {
+  dir = sources(),
+  tags = [],
+  type = "source",
+  sources: sources2 = [],
+  related = [],
+  id_filename = false,
+  filename_slug = null
+} = {}) {
+  const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  mkdirSync2(dir, { recursive: true });
+  let path, title_field;
+  if (filename_slug) {
+    const safe = slugify(filename_slug);
+    path = join4(dir, `${safe}.md`);
+    title_field = yaml_title(title);
+  } else if (id_filename) {
+    const id = gen_source_id(dir);
+    path = join4(dir, `${id}.md`);
+    title_field = yaml_title(title);
+  } else {
+    const safe = slugify(title);
+    path = join4(dir, `${safe}.md`);
+    title_field = safe;
+  }
+  const frontmatter = [
+    `title: ${title_field}`,
+    `date: ${date3}`,
+    `type: ${type}`,
+    `tags: [${tags.join(", ")}]`
+  ].join("\n") + frontmatter_links("sources", sources2) + frontmatter_links("related", related) + (type === "conclusion" ? "\nderived_from: []" : "");
+  const body_with_links = regen_body_sections(body, sources2, related);
+  writeFileSync2(path, `---
+${frontmatter}
+---
+
+${body_with_links}
+`);
+  return path;
+}
+function enqueue_research(question, { context = "", requested_by = "", priority = "med", sources: sources2 = [] } = {}) {
+  const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const safe = slugify(question);
+  mkdirSync2(pending(), { recursive: true });
+  const path = join4(pending(), `${safe}.md`);
+  if (existsSync3(path)) return path;
+  const frontmatter = [
+    `title: ${safe}`,
+    `date: ${date3}`,
+    `type: research-pending`,
+    `status: pending`,
+    `requested_by: ${requested_by}`,
+    `priority: ${priority}`,
+    `tags: [research, pending]`
+  ].join("\n") + frontmatter_links("sources", sources2);
+  const body = `---
+${frontmatter}
+---
+
+## Question
+${question}
+
+## Context
+${context}
+`;
+  writeFileSync2(path, body);
+  return path;
+}
+function list_pending() {
+  if (!existsSync3(pending())) return [];
+  return readdirSync3(pending()).filter((f) => f.endsWith(".md"));
+}
+function read_pending(file) {
+  const fp = join4(pending(), file);
+  const text = readFileSync(fp, "utf8");
+  const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
+  const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
+  const s = text.match(/## Sources\s*\n([\s\S]*?)(?=\n## |$)/);
+  const fm_sources = [...text.matchAll(/^\s*-\s*"?\[\[([^\]|]+)\]\]"?/gm)].map((m) => m[1].trim());
+  const body_sources = s ? [...s[1].matchAll(/\[\[([^\]|]+)\]\]/g)].map((m) => m[1].trim()) : [];
+  return {
+    path: fp,
+    slug: file.replace(/\.md$/, ""),
+    question: (q ? q[1] : file.replace(/\.md$/, "")).trim(),
+    context: (c ? c[1] : "").trim(),
+    sources: [.../* @__PURE__ */ new Set([...fm_sources, ...body_sources])]
+  };
+}
+function delete_pending(file) {
+  const fp = join4(pending(), file);
+  if (existsSync3(fp)) unlinkSync(fp);
+}
+function patch_frontmatter_sources(filePath, sources2) {
+  patch_fm_list(
+    filePath,
+    "sources",
+    sources2,
+    (ss) => `sources:
+${ss.map((s) => `  - "[[${slugify(s)}]]"`).join("\n")}`
+  );
+}
+function patch_frontmatter_related(filePath, links) {
+  patch_fm_list(
+    filePath,
+    "related",
+    links,
+    (ll) => `related:
+${ll.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`
+  );
+}
+function find_source(name) {
+  return resolve_slug(name, sources());
+}
+function absorb_source(name) {
+  const slug = name.replace(/\.md$/, "");
+  const from = find_source(slug);
+  if (!from) throw new Error(`source not found: ${slug}`);
+  const rel = from.slice(sources().length).replace(/^[\\/]+/, "");
+  const to = join4(absorbed(), rel);
+  mkdirSync2(dirname2(to), { recursive: true });
+  renameSync(from, to);
+  return to;
+}
+function parse_fm_list(content, key) {
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return [];
+  const lines = fm[1].split("\n");
+  const out = [];
+  let in_key = false;
+  for (const line of lines) {
+    if (new RegExp(`^${key}:\\s*$`).test(line)) {
+      in_key = true;
+      continue;
+    }
+    const inline = line.match(new RegExp(`^${key}:\\s*(.+)$`));
+    if (inline) {
+      const inner = inline[1].trim();
+      const bracket = inner.match(/^\[(.*)\]$/);
+      if (bracket) {
+        bracket[1].split(",").map((s) => s.trim().replace(/^"|"$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/\.md$/, "")).filter(Boolean).forEach((v) => out.push(v));
+      } else {
+        const w = inner.replace(/^"|"$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/\.md$/, "").trim();
+        if (w) out.push(w);
+      }
+      continue;
+    }
+    if (in_key) {
+      const m = line.match(/^\s+-\s*"?\[?\[?([^"\]|\n]+?)\]?\]?"?\s*$/);
+      if (m) {
+        out.push(m[1].trim().replace(/\.md$/, ""));
+        continue;
+      }
+      if (line.trim() === "" || /^\S/.test(line)) in_key = false;
+    }
+  }
+  return out;
+}
+function patch_frontmatter_derived_from(filePath, slugs) {
+  patch_fm_list(
+    filePath,
+    "derived_from",
+    slugs,
+    (ss) => `derived_from:
+${ss.map((s) => `  - ${slugify(s)}`).join("\n")}`
+  );
+}
+var init_vault = __esm({
+  "js/vault.js"() {
+    init_fs();
+    init_slug();
+    init_slug();
+  }
+});
+
+// js/hooks/tag-context.js
+var tag_context_exports = {};
+__export(tag_context_exports, {
+  MAX_NOTES: () => MAX_NOTES,
+  MAX_TAGS: () => MAX_TAGS,
+  SNIPPET_LEN: () => SNIPPET_LEN,
+  build_context: () => build_context,
+  collect_tags: () => collect_tags,
+  match_prompt: () => match_prompt,
+  render: () => render2
+});
+import { existsSync as existsSync4, readdirSync as readdirSync4, readFileSync as readFileSync2 } from "fs";
+import { join as join5 } from "path";
+function escape_re(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function extract_snippet(content) {
+  const lines = content.replace(/^\uFEFF/, "").split("\n");
+  let in_fm = false;
+  let fm_closed = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i === 0 && line.trimEnd() === "---") {
+      in_fm = true;
+      continue;
+    }
+    if (in_fm && line.trimEnd() === "---") {
+      fm_closed = true;
+      continue;
+    }
+    if (!fm_closed) continue;
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    return t.length > SNIPPET_LEN ? t.slice(0, SNIPPET_LEN) + "\u2026" : t;
+  }
+  return "";
+}
+function collect_tags(dir = conclusions()) {
+  const tagMap = /* @__PURE__ */ new Map();
+  if (!existsSync4(dir)) return tagMap;
+  function walk(d) {
+    for (const entry of readdirSync4(d, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const full = join5(d, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.name.endsWith(".md")) continue;
+      const content = readFileSync2(full, "utf8").replace(/^\uFEFF/, "");
+      const slug = entry.name.replace(/\.md$/, "");
+      const titles = parse_fm_list(content, "title");
+      const title = titles[0] || slug;
+      const tags = parse_fm_list(content, "tags");
+      const snippet = extract_snippet(content);
+      for (const tag of tags) {
+        if (!tagMap.has(tag)) tagMap.set(tag, []);
+        tagMap.get(tag).push({ title, slug, snippet });
+      }
+    }
+  }
+  walk(dir);
+  return tagMap;
+}
+function match_prompt(prompt, tagMap) {
+  const matched = [];
+  for (const tag of tagMap.keys()) {
+    if (tag.length < 3) continue;
+    const esc2 = escape_re(tag);
+    const re = new RegExp("(?<![\\w])" + esc2 + "(?![\\w])", "i");
+    if (re.test(prompt)) matched.push(tag);
+  }
+  return matched;
+}
+function render2(matchedTags, tagMap) {
+  if (!matchedTags || !matchedTags.length) return "";
+  const capped = matchedTags.slice(0, MAX_TAGS);
+  const seen = /* @__PURE__ */ new Set();
+  const sections = [];
+  for (const tag of capped) {
+    const notes = tagMap.get(tag) || [];
+    const lines = [];
+    for (const note of notes) {
+      if (lines.length >= MAX_NOTES) break;
+      if (seen.has(note.slug)) continue;
+      seen.add(note.slug);
+      const snip = note.snippet ? ": " + note.snippet : "";
+      lines.push(`- [[${note.slug}]] \u2014 ${note.title}${snip}`);
+    }
+    if (lines.length) {
+      sections.push(`### #${tag}
+${lines.join("\n")}`);
+    }
+  }
+  if (!sections.length) return "";
+  const header = `## Vicky KB (live) \u2014 conclusions tagged: ${capped.join(", ")}`;
+  const footer = '> Live from the vault. Need more? Run /vicky:research "<topic>".';
+  return [header, "", ...sections, "", footer].join("\n");
+}
+function build_context(prompt, tagMap) {
+  return render2(match_prompt(prompt, tagMap), tagMap);
+}
+var MAX_TAGS, MAX_NOTES, SNIPPET_LEN;
+var init_tag_context = __esm({
+  "js/hooks/tag-context.js"() {
+    init_vault();
+    init_fs();
+    MAX_TAGS = 5;
+    MAX_NOTES = 3;
+    SNIPPET_LEN = 150;
+  }
+});
+
 // node_modules/zod/v3/helpers/util.js
 var util, objectUtil, ZodParsedType, getParsedType;
 var init_util = __esm({
@@ -22079,8 +22534,8 @@ var init_stdio2 = __esm({
 
 // js/graph.js
 import { exec, spawn } from "child_process";
-import { existsSync as existsSync2, readFileSync, renameSync } from "fs";
-import { join as join3, resolve as resolve2 } from "path";
+import { existsSync as existsSync5, readFileSync as readFileSync3, renameSync as renameSync2 } from "fs";
+import { join as join6, resolve as resolve2 } from "path";
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
   try {
@@ -22102,7 +22557,7 @@ function detect_backend() {
   return null;
 }
 async function query_graph(question, graph = kb_graph(), prefix = null) {
-  if (!existsSync2(graph)) return "";
+  if (!existsSync5(graph)) return "";
   if (!await checkGraphify()) return "";
   try {
     const out = await sh_async(`graphify query "${question}" --graph "${graph}"`);
@@ -22121,7 +22576,7 @@ function filter_nodes_by_prefix(raw, prefix) {
   }).join("\n");
 }
 async function query_graph_hits(question, prefix = null, graphPath = kb_graph(), limit = 10) {
-  if (!existsSync2(graphPath)) return [];
+  if (!existsSync5(graphPath)) return [];
   if (!await checkGraphify()) return [];
   let raw = "";
   try {
@@ -22157,7 +22612,7 @@ async function query_graph_hits(question, prefix = null, graphPath = kb_graph(),
 function build_inlink_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [], edges = [] } = JSON.parse(readFileSync(graphPath, "utf8"));
+    const { nodes = [], edges = [] } = JSON.parse(readFileSync3(graphPath, "utf8"));
     const node_file = /* @__PURE__ */ new Map();
     for (const n of nodes) {
       if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, "/"));
@@ -22175,7 +22630,7 @@ function build_inlink_map(graphPath) {
 function build_snippet_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [] } = JSON.parse(readFileSync(graphPath, "utf8"));
+    const { nodes = [] } = JSON.parse(readFileSync3(graphPath, "utf8"));
     for (const n of nodes) {
       if (!n.source_file) continue;
       const f = n.source_file.replace(/\\/g, "/");
@@ -22210,13 +22665,13 @@ var init_graph = __esm({
       const root2 = resolve2(root());
       await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}`, { cwd: root2 });
       const graph = kb_graph();
-      if (!existsSync2(graph)) return { ok: false, reason: "no_graph_produced" };
+      if (!existsSync5(graph)) return { ok: false, reason: "no_graph_produced" };
       const wikiDir = graphs();
       await sh_bg(`graphify export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root2 });
-      const idx = join3(wikiDir, "index.md");
-      if (existsSync2(idx)) {
+      const idx = join6(wikiDir, "index.md");
+      if (existsSync5(idx)) {
         try {
-          renameSync(idx, kb_wiki());
+          renameSync2(idx, kb_wiki());
         } catch {
         }
       }
@@ -22225,350 +22680,8 @@ var init_graph = __esm({
   }
 });
 
-// js/slug.js
-import { existsSync as existsSync3, readdirSync as readdirSync2 } from "node:fs";
-import { join as join4 } from "node:path";
-function slugify(input) {
-  if (input == null) return "";
-  let s = String(input).replace(/\.md$/i, "");
-  s = s.replace(/_/g, "-");
-  s = s.replace(/[^\w\s-]/g, "");
-  s = s.trim().replace(/\s+/g, "-");
-  s = s.replace(/-+/g, "-").replace(/^-/, "");
-  if (s.length > SLUG_MAX) s = s.slice(0, SLUG_MAX);
-  s = s.replace(/-+$/, "");
-  return s;
-}
-function match_prefix(slug, candidate) {
-  if (!slug || !candidate) return false;
-  const a = String(slug).replace(/\.md$/i, "").toLowerCase();
-  const b = String(candidate).replace(/\.md$/i, "").toLowerCase();
-  if (!a || !b) return false;
-  return a.startsWith(b) || b.startsWith(a);
-}
-function resolve_slug(stem, dir) {
-  if (!dir || !existsSync3(dir)) return null;
-  const target = slugify(stem);
-  if (!target) return null;
-  let exact = null;
-  let prefix = null;
-  const stack = [dir];
-  while (stack.length) {
-    const d = stack.pop();
-    let entries;
-    try {
-      entries = readdirSync2(d, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      if (e.name.startsWith(".")) continue;
-      const full = join4(d, e.name);
-      if (e.isDirectory()) {
-        stack.push(full);
-        continue;
-      }
-      if (!e.name.endsWith(".md")) continue;
-      const base = e.name.replace(/\.md$/, "");
-      if (base.toLowerCase() === target.toLowerCase()) {
-        exact = full;
-        break;
-      }
-      if (!prefix && match_prefix(target, base)) {
-        prefix = full;
-      }
-    }
-    if (exact) break;
-  }
-  return exact ?? prefix;
-}
-var SLUG_MAX;
-var init_slug = __esm({
-  "js/slug.js"() {
-    SLUG_MAX = 45;
-  }
-});
-
-// js/vault.js
-import { existsSync as existsSync4, readFileSync as readFileSync2, writeFileSync as writeFileSync2, readdirSync as readdirSync3, mkdirSync as mkdirSync2, unlinkSync, renameSync as renameSync2 } from "fs";
-import { join as join5, dirname as dirname2 } from "path";
-function search_hits(dir, query, limit = 10) {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!terms.length) return [];
-  const root2 = root();
-  const hits = [];
-  function walk(d) {
-    if (!existsSync4(d)) return;
-    for (const e of readdirSync3(d, { withFileTypes: true })) {
-      if (e.name.startsWith(".")) continue;
-      const full = join5(d, e.name);
-      if (e.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!e.name.endsWith(".md")) continue;
-      const text = readFileSync2(full, "utf8");
-      const lower = text.toLowerCase();
-      const matched = terms.filter((t) => lower.includes(t)).length;
-      const stem = e.name.replace(/\.md$/, "");
-      const stem_hit = terms.some((t) => match_prefix(t, stem));
-      if (!matched && !stem_hit) continue;
-      const lines = text.split("\n");
-      let body_start = 0;
-      if (lines[0] === "---") {
-        const fm_end = lines.findIndex((l, i) => i > 0 && l === "---");
-        if (fm_end >= 0) body_start = fm_end + 1;
-      }
-      const body_lines = lines.slice(body_start);
-      const body_idx = body_lines.findIndex((l) => terms.some((t) => l.toLowerCase().includes(t)));
-      const idx = body_idx < 0 ? -1 : body_start + body_idx;
-      const snippet = idx < 0 ? `(filename match: ${stem})` : lines.slice(Math.max(0, idx - 1), idx + 5).join("\n").slice(0, 200);
-      const coverage = matched / terms.length;
-      const position = idx < 0 ? 0 : 1 / (1 + idx / 10);
-      const stem_bonus = stem_hit ? 0.2 : 0;
-      const score = +(coverage * 0.5 + position * 0.3 + stem_bonus).toFixed(4);
-      const rel = full.replace(/\\/g, "/");
-      const note_path = rel.startsWith(root2.replace(/\\/g, "/") + "/") ? rel : `${root2}/${rel}`.replace(/\\/g, "/");
-      hits.push({ note_path, score, inlinks: 0, snippet });
-    }
-  }
-  walk(dir);
-  hits.sort((a, b) => b.score - a.score);
-  return hits.slice(0, limit);
-}
-function strip_section(body, heading) {
-  const re = new RegExp(`\\n{0,2}##\\s+${heading}\\s*\\n(?:[^\\n]*\\n?)*?(?=\\n##\\s|$)`, "g");
-  return body.replace(re, "").trimEnd();
-}
-function regen_body_sections(body, sources2, related) {
-  let out = body;
-  out = strip_section(out, "Sources");
-  out = strip_section(out, "Related");
-  return out;
-}
-function frontmatter_links(key, items) {
-  if (!items?.length) return "";
-  return `
-${key}:
-${items.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`;
-}
-function gen_source_id(dir = sources()) {
-  const d = /* @__PURE__ */ new Date();
-  const yy = String(d.getFullYear()).slice(-2);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const stamp = `${yy}${mm}${dd}`;
-  mkdirSync2(dir, { recursive: true });
-  for (let i = 0; i < 100; i++) {
-    const hex = Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
-    const id = `${stamp}-${hex}`;
-    if (!existsSync4(join5(dir, `${id}.md`))) return id;
-  }
-  throw new Error(`gen_source_id: 100 collisions in ${dir}`);
-}
-function yaml_title(title) {
-  if (/[:"]/.test(title)) return `"${title.replace(/"/g, '\\"')}"`;
-  return title;
-}
-function strip_fm_key(fmBody, key) {
-  const re = new RegExp(`^${key}:[^\\n]*(?:\\n[ \\t]+[^\\n]*)*`, "m");
-  return fmBody.replace(re, "").replace(/\n{2,}/g, "\n").trimEnd();
-}
-function patch_fm_list(filePath, key, items, formatter) {
-  let content = readFileSync2(filePath, "utf8");
-  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  const value = items.length ? formatter(items) : "";
-  if (fm) {
-    let body = strip_fm_key(fm[1], key);
-    if (value) body += "\n" + value;
-    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
-${body.trim()}
----`);
-  } else if (value) {
-    content = `---
-${value}
----
-
-` + content;
-  }
-  writeFileSync2(filePath, content);
-}
-function save_note(title, body, {
-  dir = sources(),
-  tags = [],
-  type = "source",
-  sources: sources2 = [],
-  related = [],
-  id_filename = false,
-  filename_slug = null
-} = {}) {
-  const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  mkdirSync2(dir, { recursive: true });
-  let path, title_field;
-  if (filename_slug) {
-    const safe = slugify(filename_slug);
-    path = join5(dir, `${safe}.md`);
-    title_field = yaml_title(title);
-  } else if (id_filename) {
-    const id = gen_source_id(dir);
-    path = join5(dir, `${id}.md`);
-    title_field = yaml_title(title);
-  } else {
-    const safe = slugify(title);
-    path = join5(dir, `${safe}.md`);
-    title_field = safe;
-  }
-  const frontmatter = [
-    `title: ${title_field}`,
-    `date: ${date3}`,
-    `type: ${type}`,
-    `tags: [${tags.join(", ")}]`
-  ].join("\n") + frontmatter_links("sources", sources2) + frontmatter_links("related", related) + (type === "conclusion" ? "\nderived_from: []" : "");
-  const body_with_links = regen_body_sections(body, sources2, related);
-  writeFileSync2(path, `---
-${frontmatter}
----
-
-${body_with_links}
-`);
-  return path;
-}
-function enqueue_research(question, { context = "", requested_by = "", priority = "med", sources: sources2 = [] } = {}) {
-  const date3 = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const safe = slugify(question);
-  mkdirSync2(pending(), { recursive: true });
-  const path = join5(pending(), `${safe}.md`);
-  if (existsSync4(path)) return path;
-  const frontmatter = [
-    `title: ${safe}`,
-    `date: ${date3}`,
-    `type: research-pending`,
-    `status: pending`,
-    `requested_by: ${requested_by}`,
-    `priority: ${priority}`,
-    `tags: [research, pending]`
-  ].join("\n") + frontmatter_links("sources", sources2);
-  const body = `---
-${frontmatter}
----
-
-## Question
-${question}
-
-## Context
-${context}
-`;
-  writeFileSync2(path, body);
-  return path;
-}
-function list_pending() {
-  if (!existsSync4(pending())) return [];
-  return readdirSync3(pending()).filter((f) => f.endsWith(".md"));
-}
-function read_pending(file) {
-  const fp = join5(pending(), file);
-  const text = readFileSync2(fp, "utf8");
-  const q = text.match(/## Question\s*\n([\s\S]*?)(?=\n## |$)/);
-  const c = text.match(/## Context\s*\n([\s\S]*?)(?=\n## |$)/);
-  const s = text.match(/## Sources\s*\n([\s\S]*?)(?=\n## |$)/);
-  const fm_sources = [...text.matchAll(/^\s*-\s*"?\[\[([^\]|]+)\]\]"?/gm)].map((m) => m[1].trim());
-  const body_sources = s ? [...s[1].matchAll(/\[\[([^\]|]+)\]\]/g)].map((m) => m[1].trim()) : [];
-  return {
-    path: fp,
-    slug: file.replace(/\.md$/, ""),
-    question: (q ? q[1] : file.replace(/\.md$/, "")).trim(),
-    context: (c ? c[1] : "").trim(),
-    sources: [.../* @__PURE__ */ new Set([...fm_sources, ...body_sources])]
-  };
-}
-function delete_pending(file) {
-  const fp = join5(pending(), file);
-  if (existsSync4(fp)) unlinkSync(fp);
-}
-function patch_frontmatter_sources(filePath, sources2) {
-  patch_fm_list(
-    filePath,
-    "sources",
-    sources2,
-    (ss) => `sources:
-${ss.map((s) => `  - "[[${slugify(s)}]]"`).join("\n")}`
-  );
-}
-function patch_frontmatter_related(filePath, links) {
-  patch_fm_list(
-    filePath,
-    "related",
-    links,
-    (ll) => `related:
-${ll.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`
-  );
-}
-function find_source(name) {
-  return resolve_slug(name, sources());
-}
-function absorb_source(name) {
-  const slug = name.replace(/\.md$/, "");
-  const from = find_source(slug);
-  if (!from) throw new Error(`source not found: ${slug}`);
-  const rel = from.slice(sources().length).replace(/^[\\/]+/, "");
-  const to = join5(absorbed(), rel);
-  mkdirSync2(dirname2(to), { recursive: true });
-  renameSync2(from, to);
-  return to;
-}
-function parse_fm_list(content, key) {
-  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!fm) return [];
-  const lines = fm[1].split("\n");
-  const out = [];
-  let in_key = false;
-  for (const line of lines) {
-    if (new RegExp(`^${key}:\\s*$`).test(line)) {
-      in_key = true;
-      continue;
-    }
-    const inline = line.match(new RegExp(`^${key}:\\s*(.+)$`));
-    if (inline) {
-      const inner = inline[1].trim();
-      const bracket = inner.match(/^\[(.*)\]$/);
-      if (bracket) {
-        bracket[1].split(",").map((s) => s.trim().replace(/^"|"$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/\.md$/, "")).filter(Boolean).forEach((v) => out.push(v));
-      } else {
-        const w = inner.replace(/^"|"$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/\.md$/, "").trim();
-        if (w) out.push(w);
-      }
-      continue;
-    }
-    if (in_key) {
-      const m = line.match(/^\s+-\s*"?\[?\[?([^"\]|\n]+?)\]?\]?"?\s*$/);
-      if (m) {
-        out.push(m[1].trim().replace(/\.md$/, ""));
-        continue;
-      }
-      if (line.trim() === "" || /^\S/.test(line)) in_key = false;
-    }
-  }
-  return out;
-}
-function patch_frontmatter_derived_from(filePath, slugs) {
-  patch_fm_list(
-    filePath,
-    "derived_from",
-    slugs,
-    (ss) => `derived_from:
-${ss.map((s) => `  - ${slugify(s)}`).join("\n")}`
-  );
-}
-var init_vault = __esm({
-  "js/vault.js"() {
-    init_fs();
-    init_slug();
-    init_slug();
-  }
-});
-
 // js/workflow.js
-import { existsSync as existsSync5, readFileSync as readFileSync3, statSync } from "fs";
+import { existsSync as existsSync6, readFileSync as readFileSync4, statSync } from "fs";
 function parse_frontmatter(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
@@ -22642,13 +22755,13 @@ function parse_section(text, name) {
 }
 function load_workflow() {
   const path = workflow_md();
-  if (!existsSync5(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
+  if (!existsSync6(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
   try {
     const { mtimeMs } = statSync(path);
     if (cache && mtimeMs === cache_mtime) return cache;
   } catch {
   }
-  const text = readFileSync3(path, "utf8");
+  const text = readFileSync4(path, "utf8");
   const fm = parse_frontmatter(text);
   const merged = { ...DEFAULTS, ...fm };
   const wf = {
@@ -22844,7 +22957,7 @@ var init_research_gap = __esm({
 });
 
 // js/tools/remember.js
-import { join as join6, basename as basename3 } from "path";
+import { join as join7, basename as basename3 } from "path";
 function register3(server2) {
   server2.registerTool("remember", {
     description: "Save key points or findings into the source vault. Conclusions are not auto-spawned \u2014 call `conclude` once you have a synthesised takeaway.",
@@ -22861,7 +22974,7 @@ function register3(server2) {
     if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
       return { content: [{ type: "text", text: "remember writes to vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
     }
-    const dir = folder ? join6(sources(), folder) : sources();
+    const dir = folder ? join7(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related, id_filename: true });
     const slug = basename3(path).replace(/\.md$/, "");
@@ -22879,7 +22992,7 @@ var init_remember = __esm({
 });
 
 // js/tools/conclude.js
-import { join as join7 } from "path";
+import { join as join8 } from "path";
 function register4(server2) {
   server2.registerTool("conclude", {
     description: "Save a derived conclusion into vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
@@ -22893,7 +23006,7 @@ function register4(server2) {
     }
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
-    const dir = folder ? join7(conclusions(), folder) : conclusions();
+    const dir = folder ? join8(conclusions(), folder) : conclusions();
     const merged = Array.from(/* @__PURE__ */ new Set(["conclusion", ...tags.filter((t) => t !== "research" && t !== "pending")]));
     const path = save_note(title, content, { dir, tags: merged, type: "conclusion", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
@@ -22909,15 +23022,15 @@ var init_conclude = __esm({
 });
 
 // js/link.js
-import { existsSync as existsSync6, readFileSync as readFileSync4, readdirSync as readdirSync4 } from "fs";
-import { join as join8 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync5, readdirSync as readdirSync5 } from "fs";
+import { join as join9 } from "path";
 function list_md_files(dir) {
-  if (!existsSync6(dir)) return [];
+  if (!existsSync7(dir)) return [];
   const files = [];
   function walk(d) {
-    for (const e of readdirSync4(d, { withFileTypes: true })) {
+    for (const e of readdirSync5(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join8(d, e.name);
+      const full = join9(d, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.name.endsWith(".md")) files.push({ full, name: e.name });
     }
@@ -23015,10 +23128,10 @@ var init_jobs = __esm({
 });
 
 // js/tools/relink.js
-import { readdirSync as readdirSync5 } from "fs";
+import { readdirSync as readdirSync6 } from "fs";
 function est_relink_seconds() {
   try {
-    const n = readdirSync5(conclusions()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync6(conclusions()).filter((f) => f.endsWith(".md")).length;
     return Math.max(10, Math.min(600, Math.round(n * 0.3)));
   } catch {
     return 10;
@@ -23077,7 +23190,7 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { existsSync as existsSync7, readFileSync as readFileSync5, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync6 } from "fs";
+import { existsSync as existsSync8, readFileSync as readFileSync6, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync7 } from "fs";
 import { execSync } from "child_process";
 function git_mtime(path) {
   try {
@@ -23092,8 +23205,8 @@ function git_mtime(path) {
   }
 }
 function autofill_frontmatter(path) {
-  if (!existsSync7(path)) return false;
-  let text = readFileSync5(path, "utf8");
+  if (!existsSync8(path)) return false;
+  let text = readFileSync6(path, "utf8");
   const fm_match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   let body_block = fm_match ? fm_match[1] : "";
   const has = (key) => new RegExp(`^${key}:`, "m").test(body_block);
@@ -23119,7 +23232,7 @@ ${additions.join("\n")}
 }
 function est_learn_seconds() {
   try {
-    const n = readdirSync6(pending()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync7(pending()).filter((f) => f.endsWith(".md")).length;
     return Math.max(5, Math.min(300, Math.round(n * 0.5)));
   } catch {
     return 5;
@@ -23228,8 +23341,8 @@ var init_learn = __esm({
 });
 
 // js/tools/enqueue.js
-import { existsSync as existsSync8 } from "fs";
-import { join as join9 } from "path";
+import { existsSync as existsSync9 } from "fs";
+import { join as join10 } from "path";
 function validate_frontmatter(fm) {
   const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
   if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
@@ -23265,8 +23378,8 @@ function register7(server2) {
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
     const slug = slugify(question);
-    const path = join9(pending(), `${slug}.md`);
-    if (existsSync8(path)) {
+    const path = join10(pending(), `${slug}.md`);
+    if (existsSync9(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
     }
     const out = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
@@ -23484,7 +23597,7 @@ var init_job_status = __esm({
 });
 
 // js/tools/crystalize.js
-import { readFileSync as readFileSync6 } from "fs";
+import { readFileSync as readFileSync7 } from "fs";
 import { basename as basename5 } from "path";
 function find_conclusion(name) {
   return resolve_slug(name, conclusions());
@@ -23503,7 +23616,7 @@ function register12(server2) {
     if (!concPath) {
       return { content: [{ type: "text", text: `Error: conclusion not found: ${conclusion}` }] };
     }
-    const concContent = readFileSync6(concPath, "utf8");
+    const concContent = readFileSync7(concPath, "utf8");
     const existing_sources = parse_fm_list(concContent, "sources");
     const existing_derived = parse_fm_list(concContent, "derived_from");
     const moves = [];
@@ -23560,7 +23673,7 @@ var mcp_server_exports = {};
 __export(mcp_server_exports, {
   config: () => config2
 });
-import { readFileSync as readFileSync7 } from "fs";
+import { readFileSync as readFileSync8 } from "fs";
 var config2, server, notify, transport;
 var init_mcp_server2 = __esm({
   async "js/mcp-server.js"() {
@@ -23585,7 +23698,7 @@ var init_mcp_server2 = __esm({
     };
     try {
       const configPath = "./vicky.config.json";
-      const configText = readFileSync7(configPath, "utf8");
+      const configText = readFileSync8(configPath, "utf8");
       config2 = { ...config2, ...JSON.parse(configText) };
     } catch (_) {
     }
@@ -23646,9 +23759,30 @@ if (mode === "init") {
     console.error(`dashboard: ${e.message}`);
     process.exit(1);
   }
+} else if (mode === "tag-context") {
+  try {
+    const chunks = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk);
+    }
+    const raw = Buffer.concat(chunks).toString("utf8").trim();
+    let prompt = "";
+    try {
+      const payload2 = JSON.parse(raw);
+      prompt = typeof payload2.prompt === "string" ? payload2.prompt : "";
+    } catch (_) {
+    }
+    if (prompt) {
+      const { collect_tags: collect_tags2, build_context: build_context2 } = await Promise.resolve().then(() => (init_tag_context(), tag_context_exports));
+      const out = build_context2(prompt, collect_tags2());
+      if (out) console.log(out);
+    }
+  } catch (_) {
+  }
+  process.exit(0);
 } else if (mode === "mcp" || mode === void 0) {
   await init_mcp_server2().then(() => mcp_server_exports);
 } else {
-  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard`);
+  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context`);
   process.exit(2);
 }
