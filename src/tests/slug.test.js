@@ -123,3 +123,9 @@ test('search_hits: stem-only hit emits filename-match marker, not frontmatter', 
   assert.ok(hits[0].snippet.startsWith('(filename match:'), `got snippet: ${hits[0].snippet}`);
   rs2(root, { recursive: true });
 });
+
+test('match_prefix: normalizes underscores to dashes', () => {
+  assert.equal(match_prefix('gpu-perf', 'gpu_perf'), true);
+  assert.equal(match_prefix('or-return', 'or_return-or_else-canon'), true);
+  assert.equal(match_prefix('or_return', 'or-return-or-else-canon'), true);
+});

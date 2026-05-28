@@ -299,8 +299,8 @@ function slugify(input) {
 }
 function match_prefix(slug, candidate) {
   if (!slug || !candidate) return false;
-  const a = String(slug).replace(/\.md$/i, "").toLowerCase();
-  const b = String(candidate).replace(/\.md$/i, "").toLowerCase();
+  const a = slugify(slug).toLowerCase();
+  const b = slugify(candidate).toLowerCase();
   if (!a || !b) return false;
   return a.startsWith(b) || b.startsWith(a);
 }
@@ -327,7 +327,7 @@ function resolve_slug(stem, dir) {
         continue;
       }
       if (!e.name.endsWith(".md")) continue;
-      const base = e.name.replace(/\.md$/, "");
+      const base = slugify(e.name);
       if (base.toLowerCase() === target.toLowerCase()) {
         exact = full;
         break;

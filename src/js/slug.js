@@ -17,12 +17,13 @@ export function slugify(input) {
 }
 
 // Bidirectional case-insensitive start-of-string match. Returns true if
-// either argument is a prefix of the other (after .md stripping). Bridges
-// the era gap between legacy 60-char filenames (pre-0.9.1) and 45-char slugs.
+// either argument is a prefix of the other (after slug normalization
+// (underscores→dashes, .md stripped, 45-char cap)). Bridges the era gap
+// between legacy 60-char filenames (pre-0.9.1) and 45-char slugs.
 export function match_prefix(slug, candidate) {
   if (!slug || !candidate) return false;
-  const a = String(slug).replace(/\.md$/i, '').toLowerCase();
-  const b = String(candidate).replace(/\.md$/i, '').toLowerCase();
+  const a = slugify(slug).toLowerCase();
+  const b = slugify(candidate).toLowerCase();
   if (!a || !b) return false;
   return a.startsWith(b) || b.startsWith(a);
 }
@@ -51,7 +52,7 @@ export function resolve_slug(stem, dir) {
       const full = join(d, e.name);
       if (e.isDirectory()) { stack.push(full); continue; }
       if (!e.name.endsWith('.md')) continue;
-      const base = e.name.replace(/\.md$/, '');
+      const base = slugify(e.name);
       if (base.toLowerCase() === target.toLowerCase()) { exact = full; break; }
       if (!prefix && match_prefix(target, base)) { prefix = full; }
     }

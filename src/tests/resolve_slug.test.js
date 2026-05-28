@@ -70,3 +70,10 @@ test('normalizes input via slugify (strips special chars)', () => {
   assert.equal(resolve_slug('Hello World!', root), join(root, 'Hello-World.md'));
   rmSync(root, { recursive: true });
 });
+
+test('resolves underscore filename from dashed query and prefix', () => {
+  const root = make_fixture(['or_return-or_else-canon.md']);
+  assert.equal(resolve_slug('or-return-or-else-canon', root), join(root, 'or_return-or_else-canon.md'));
+  assert.equal(resolve_slug('or_return', root), join(root, 'or_return-or_else-canon.md'));
+  rmSync(root, { recursive: true });
+});
