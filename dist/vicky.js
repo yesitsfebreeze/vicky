@@ -676,13 +676,14 @@ function collect_tags(dir = conclusions()) {
       if (!entry.name.endsWith(".md")) continue;
       const content = readFileSync2(full, "utf8").replace(/^\uFEFF/, "");
       const slug = entry.name.replace(/\.md$/, "");
+      const path = full.replace(/\\/g, "/");
       const titles = parse_fm_list(content, "title");
       const title = titles[0] || slug;
       const tags = parse_fm_list(content, "tags");
       const snippet = extract_snippet(content);
       for (const tag of tags) {
         if (!tagMap.has(tag)) tagMap.set(tag, []);
-        tagMap.get(tag).push({ title, slug, snippet });
+        tagMap.get(tag).push({ title, slug, path, snippet });
       }
     }
   }
@@ -712,7 +713,7 @@ function render2(matchedTags, tagMap) {
       if (seen.has(note.slug)) continue;
       seen.add(note.slug);
       const snip = note.snippet ? ": " + note.snippet : "";
-      lines.push(`- [[${note.slug}]] \u2014 ${note.title}${snip}`);
+      lines.push(`- @${note.path} \u2014 ${note.title}${snip}`);
     }
     if (lines.length) {
       sections.push(`### #${tag}
@@ -721,7 +722,7 @@ ${lines.join("\n")}`);
   }
   if (!sections.length) return "";
   const header = `## Vicky KB (live) \u2014 conclusions tagged: ${capped.join(", ")}`;
-  const footer = '> Live from the vault. Need more? Run /vicky:research "<topic>".';
+  const footer = '> Live from the vault. Need more? Run /vicky:query "<topic>".';
   return [header, "", ...sections, "", footer].join("\n");
 }
 function build_context(prompt, tagMap) {
