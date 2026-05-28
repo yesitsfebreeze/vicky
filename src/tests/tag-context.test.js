@@ -96,17 +96,14 @@ test('render: MAX_TAGS cap — only 5 tags rendered when 6 are matched', () => {
 	assert.ok(!out.includes('### #fff'), 'fff should be capped');
 });
 
-test('render: MAX_NOTES cap — only 3 notes rendered when 4 exist for a tag', () => {
-	const notes = [
-		{ slug: 'n1', title: 'Note 1', path: 'vicky/conclusions/n1.md', snippet: '' },
-		{ slug: 'n2', title: 'Note 2', path: 'vicky/conclusions/n2.md', snippet: '' },
-		{ slug: 'n3', title: 'Note 3', path: 'vicky/conclusions/n3.md', snippet: '' },
-		{ slug: 'n4', title: 'Note 4', path: 'vicky/conclusions/n4.md', snippet: '' },
-	];
+test('render: MAX_NOTES cap — at most MAX_NOTES notes rendered per tag', () => {
+	const notes = Array.from({ length: MAX_NOTES + 1 }, (_, i) => ({
+		slug: `n${i + 1}`, title: `Note ${i + 1}`, path: `vicky/conclusions/n${i + 1}.md`, snippet: '',
+	}));
 	const map = new Map([['perf', notes]]);
 	const out = render(['perf'], map);
-	assert.ok(out.includes('@vicky/conclusions/n3.md'), 'should include n3');
-	assert.ok(!out.includes('@vicky/conclusions/n4.md'), 'n4 should be capped');
+	assert.ok(out.includes(`@vicky/conclusions/n${MAX_NOTES}.md`), `should include n${MAX_NOTES}`);
+	assert.ok(!out.includes(`@vicky/conclusions/n${MAX_NOTES + 1}.md`), `n${MAX_NOTES + 1} should be capped`);
 });
 
 test('render: cross-tag deduplication by slug — note under both perf and gpu shows only under first', () => {
@@ -275,6 +272,21 @@ test('collect_tags: BOM-prefixed note — snippet is body line not frontmatter',
 		const notes = map.get('bom');
 		assert.ok(notes, 'missing bom tag');
 		assert.equal(notes[0].snippet, 'Real body line.', `snippet leaked frontmatter: ${notes[0].snippet}`);
+	} finally {
+		rmSync(tmp, { recursive: true });
+	}
+});
+
+test('collect_tags: CRLF note — inline tags list still parsed (regression)', async () => {
+	const tmp = mkdtempSync(join(tmpdir(), 'vicky-tc-crlf-'));
+	try {
+		const CR = String.fromCharCode(13), LF = String.fromCharCode(10);
+		// Windows CRLF: a trailing CR once broke inline tags:[...] parsing, so zero tags were seen.
+		const crlf = make_note({ slug: 'crlf', title: 'CRLF Note', tags: ['nanite', 'delaunay'] }).split(LF).join(CR + LF);
+		writeFileSync(join(tmp, 'crlf-note.md'), crlf);
+		const map = collect_tags(tmp);
+		assert.ok(map.get('nanite'), 'nanite tag missing on CRLF note');
+		assert.ok(map.get('delaunay'), 'delaunay tag missing on CRLF note');
 	} finally {
 		rmSync(tmp, { recursive: true });
 	}

@@ -232,7 +232,7 @@ export function absorb_source(name) {
 export function parse_fm_list(content, key) {
 	const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	if (!fm) return [];
-	const lines = fm[1].split('\n');
+	const lines = fm[1].split(/\r?\n/); // CRLF-safe: trailing CR breaks inline key:(.+)$ parsing on CRLF files
 	const out = [];
 	let in_key = false;
 	for (const line of lines) {

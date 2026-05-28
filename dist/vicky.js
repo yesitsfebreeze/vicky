@@ -577,7 +577,7 @@ function absorb_source(name) {
 function parse_fm_list(content, key) {
   const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!fm) return [];
-  const lines = fm[1].split("\n");
+  const lines = fm[1].split(/\r?\n/);
   const out = [];
   let in_key = false;
   for (const line of lines) {
@@ -734,7 +734,7 @@ var init_tag_context = __esm({
     init_vault();
     init_fs();
     MAX_TAGS = 5;
-    MAX_NOTES = 3;
+    MAX_NOTES = 15;
     SNIPPET_LEN = 150;
   }
 });

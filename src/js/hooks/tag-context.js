@@ -11,7 +11,7 @@ import * as fs from '../fs.js';
 // ── tunables ─────────────────────────────────────────────────────────────────────────────────
 
 export const MAX_TAGS    = 5;
-export const MAX_NOTES   = 3;
+export const MAX_NOTES   = 15;
 export const SNIPPET_LEN = 150;
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────
