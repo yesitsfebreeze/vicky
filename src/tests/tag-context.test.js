@@ -81,14 +81,14 @@ test('render: returns empty string for empty matchedTags', () => {
 });
 
 test('render: footer hint line is present when there is >= 1 match', () => {
-	const map = new Map([['perf', [{ slug: 'note-a', title: 'Note A', snippet: 'snippet' }]]]);
+	const map = new Map([['perf', [{ slug: 'note-a', title: 'Note A', path: 'vicky/conclusions/note-a.md', snippet: 'snippet' }]]]);
 	const out = render(['perf'], map);
-	assert.ok(out.includes('/vicky:research'), `footer missing in:\n${out}`);
+	assert.ok(out.includes('/vicky:query'), `footer missing in:\n${out}`);
 });
 
 test('render: MAX_TAGS cap — only 5 tags rendered when 6 are matched', () => {
 	const tags = ['aaa', 'bbb', 'ccc', 'ddd', 'eee', 'fff'];
-	const map  = new Map(tags.map((t, i) => [t, [{ slug: `note-${i}`, title: `Note ${i}`, snippet: '' }]]));
+	const map  = new Map(tags.map((t, i) => [t, [{ slug: `note-${i}`, title: `Note ${i}`, path: `vicky/conclusions/note-${i}.md`, snippet: '' }]]));
 	const out  = render(tags, map);
 	// Should contain headers for first 5 only
 	assert.ok(out.includes('### #aaa'), 'missing aaa');
@@ -98,20 +98,20 @@ test('render: MAX_TAGS cap — only 5 tags rendered when 6 are matched', () => {
 
 test('render: MAX_NOTES cap — only 3 notes rendered when 4 exist for a tag', () => {
 	const notes = [
-		{ slug: 'n1', title: 'Note 1', snippet: '' },
-		{ slug: 'n2', title: 'Note 2', snippet: '' },
-		{ slug: 'n3', title: 'Note 3', snippet: '' },
-		{ slug: 'n4', title: 'Note 4', snippet: '' },
+		{ slug: 'n1', title: 'Note 1', path: 'vicky/conclusions/n1.md', snippet: '' },
+		{ slug: 'n2', title: 'Note 2', path: 'vicky/conclusions/n2.md', snippet: '' },
+		{ slug: 'n3', title: 'Note 3', path: 'vicky/conclusions/n3.md', snippet: '' },
+		{ slug: 'n4', title: 'Note 4', path: 'vicky/conclusions/n4.md', snippet: '' },
 	];
 	const map = new Map([['perf', notes]]);
 	const out = render(['perf'], map);
-	assert.ok(out.includes('[[n3]]'), 'should include n3');
-	assert.ok(!out.includes('[[n4]]'), 'n4 should be capped');
+	assert.ok(out.includes('@vicky/conclusions/n3.md'), 'should include n3');
+	assert.ok(!out.includes('@vicky/conclusions/n4.md'), 'n4 should be capped');
 });
 
 test('render: cross-tag deduplication by slug — note under both perf and gpu shows only under first', () => {
-	const shared = { slug: 'shared-note', title: 'Shared', snippet: 'shared body' };
-	const gpu_only = { slug: 'gpu-only', title: 'GPU Only', snippet: '' };
+	const shared = { slug: 'shared-note', title: 'Shared', path: 'vicky/conclusions/shared-note.md', snippet: 'shared body' };
+	const gpu_only = { slug: 'gpu-only', title: 'GPU Only', path: 'vicky/conclusions/gpu-only.md', snippet: '' };
 	const map = new Map([
 		['perf', [shared]],
 		['gpu',  [shared, gpu_only]],
@@ -126,14 +126,14 @@ test('render: cross-tag deduplication by slug — note under both perf and gpu s
 
 test('render: snippet truncation appends ellipsis past SNIPPET_LEN', () => {
 	const long = 'x'.repeat(SNIPPET_LEN + 10);
-	const note = { slug: 'trunc', title: 'Trunc', snippet: long.slice(0, SNIPPET_LEN) + '…' };
+	const note = { slug: 'trunc', title: 'Trunc', path: 'vicky/conclusions/trunc.md', snippet: long.slice(0, SNIPPET_LEN) + '…' };
 	const map  = new Map([['perf', [note]]]);
 	const out  = render(['perf'], map);
 	assert.ok(out.includes('…'), `ellipsis missing in: ${out}`);
 });
 
 test('render: header names the matched tags', () => {
-	const map = new Map([['perf', [{ slug: 'n1', title: 'T', snippet: '' }]]]);
+	const map = new Map([['perf', [{ slug: 'n1', title: 'T', path: 'vicky/conclusions/n1.md', snippet: '' }]]]);
 	const out = render(['perf'], map);
 	assert.ok(out.startsWith('## Vicky KB (live) — conclusions tagged: perf'), `bad header:\n${out}`);
 });
@@ -283,12 +283,12 @@ test('collect_tags: BOM-prefixed note — snippet is body line not frontmatter',
 // ── build_context ─────────────────────────────────────────────────────────────
 
 test('build_context: returns empty string when no tags match', () => {
-	const map = new Map([['perf', [{ slug: 'n', title: 'N', snippet: '' }]]]);
+	const map = new Map([['perf', [{ slug: 'n', title: 'N', path: 'vicky/conclusions/n.md', snippet: '' }]]]);
 	assert.equal(build_context('unrelated topic here', map), '');
 });
 
 test('build_context: returns rendered block when tags match', () => {
-	const map = new Map([['perf', [{ slug: 'n', title: 'N', snippet: 'snap' }]]]);
+	const map = new Map([['perf', [{ slug: 'n', title: 'N', path: 'vicky/conclusions/n.md', snippet: 'snap' }]]]);
 	const out = build_context('perf tips', map);
-	assert.ok(out.includes('[[n]]'), `block missing note:\n${out}`);
+	assert.ok(out.includes('@vicky/conclusions/n.md'), `block missing note:\n${out}`);
 });
