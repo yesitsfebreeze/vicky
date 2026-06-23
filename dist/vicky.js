@@ -22535,8 +22535,8 @@ var init_stdio2 = __esm({
 
 // js/graph.js
 import { exec, spawn } from "child_process";
-import { existsSync as existsSync5, readFileSync as readFileSync3, renameSync as renameSync2 } from "fs";
-import { join as join6, resolve as resolve2 } from "path";
+import { existsSync as existsSync5, readFileSync as readFileSync3, renameSync as renameSync2, cpSync } from "fs";
+import { join as join6, resolve as resolve2, dirname as dirname3 } from "path";
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
   try {
@@ -22556,6 +22556,9 @@ function detect_backend() {
   if (process.env.MISTRAL_API_KEY) return "mistral";
   if (process.env.COHERE_API_KEY) return "cohere";
   return null;
+}
+function detect_model(backend) {
+  return process.env.VICKY_MODEL?.trim() || FREE_MODELS[backend] || null;
 }
 async function query_graph(question, graph = kb_graph(), prefix = null) {
   if (!existsSync5(graph)) return "";
@@ -22643,7 +22646,7 @@ function build_snippet_map(graphPath) {
   }
   return map;
 }
-var sh_bg, sh_async, graphifyAvailable, update_kb;
+var sh_bg, sh_async, graphifyAvailable, FREE_MODELS, update_kb;
 var init_graph = __esm({
   "js/graph.js"() {
     init_fs();
@@ -22656,6 +22659,9 @@ var init_graph = __esm({
       (res, rej) => exec(cmd, { timeout: 6e4, encoding: "utf8", ...opts }, (err, stdout) => err ? rej(err) : res(stdout ?? ""))
     );
     graphifyAvailable = null;
+    FREE_MODELS = {
+      gemini: "gemini-2.5-flash"
+    };
     update_kb = async () => {
       if (!await checkGraphify()) return { ok: false, reason: "graphify_missing" };
       const backend = detect_backend();
@@ -22664,7 +22670,19 @@ var init_graph = __esm({
         return { ok: false, reason: "no_backend" };
       }
       const root2 = resolve2(root());
-      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}`, { cwd: root2 });
+      const kb_root = resolve2((void 0)());
+      const extraction_graphify_dir = join6(root2, ".graphify");
+      const kb_graphify_dir = graphify_out();
+      const model = detect_model(backend);
+      const modelArg = model ? ` --model "${model}"` : "";
+      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg}`, { cwd: root2 });
+      if (extraction_graphify_dir !== kb_graphify_dir && existsSync5(extraction_graphify_dir)) {
+        try {
+          cpSync(extraction_graphify_dir, kb_graphify_dir, { recursive: true, force: true });
+        } catch (e) {
+          console.warn(`[vicky] Failed to copy graphify results from ${extraction_graphify_dir} to ${kb_graphify_dir}: ${e.message}`);
+        }
+      }
       const graph = kb_graph();
       if (!existsSync5(graph)) return { ok: false, reason: "no_graph_produced" };
       const wikiDir = graphs();
