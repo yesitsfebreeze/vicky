@@ -1,6 +1,6 @@
 import { exec, spawn } from 'child_process';
-import { existsSync, readFileSync, renameSync } from 'fs';
-import { join, resolve } from 'path';
+import { existsSync, readFileSync, renameSync, cpSync } from 'fs';
+import { join, resolve, dirname } from 'path';
 import * as fs from './fs.js';
 
 const sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
@@ -37,6 +37,16 @@ function detect_backend() {
 	return null;
 }
 
+// graphify's per-backend default models require paid quota (e.g. gemini-3.1-pro).
+// Pin a free-tier-capable default per backend; override any of them with VICKY_MODEL.
+const FREE_MODELS = {
+	gemini: 'gemini-2.5-flash',
+};
+
+function detect_model(backend) {
+	return process.env.VICKY_MODEL?.trim() || FREE_MODELS[backend] || null;
+}
+
 export const update_kb = async () => {
 	if (!(await checkGraphify())) return { ok: false, reason: 'graphify_missing' };
 	const backend = detect_backend();
@@ -45,7 +55,23 @@ export const update_kb = async () => {
 		return { ok: false, reason: 'no_backend' };
 	}
 	const root = resolve(fs.root());
-	await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}`, { cwd: root });
+	const kb_root = resolve(fs.kb_base());
+	const extraction_graphify_dir = join(root, '.graphify');
+	const kb_graphify_dir = fs.graphify_out();
+
+	const model = detect_model(backend);
+	const modelArg = model ? ` --model "${model}"` : '';
+	await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg}`, { cwd: root });
+
+	// In workspace mode, extraction root ≠ KB base: move results to KB location
+	if (extraction_graphify_dir !== kb_graphify_dir && existsSync(extraction_graphify_dir)) {
+		try {
+			cpSync(extraction_graphify_dir, kb_graphify_dir, { recursive: true, force: true });
+		} catch (e) {
+			console.warn(`[vicky] Failed to copy graphify results from ${extraction_graphify_dir} to ${kb_graphify_dir}: ${e.message}`);
+		}
+	}
+
 	const graph = fs.kb_graph();
 	if (!existsSync(graph)) return { ok: false, reason: 'no_graph_produced' };
 	const wikiDir = fs.graphs();
