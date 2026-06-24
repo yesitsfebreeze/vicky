@@ -2,7 +2,6 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlink
 import { join, dirname } from "path";
 import * as fs from "./paths.js";
 import { slugify, resolve_slug, match_prefix } from "./slug.js";
-import { slugify as slugify2, resolve_slug as resolve_slug2, match_prefix as match_prefix2 } from "./slug.js";
 function search_hits(dir, query, limit = 10) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
@@ -287,14 +286,11 @@ export {
   find_source,
   gen_source_id,
   list_pending,
-  match_prefix2 as match_prefix,
   parse_fm_list,
   patch_frontmatter_derived_from,
   patch_frontmatter_related,
   patch_frontmatter_sources,
   read_pending,
-  resolve_slug2 as resolve_slug,
   save_note,
-  search_hits,
-  slugify2 as slugify
+  search_hits
 };
