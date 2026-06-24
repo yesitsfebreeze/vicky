@@ -799,12 +799,28 @@ async function analyzeFileImportance(limit = 30) {
     } catch (e) {
       console.warn("[vicky] Grep analysis failed, using AST data only");
     }
+    console.log("[vicky] Git history analysis...");
+    const gitCounts = {};
+    try {
+      const root2 = root();
+      const cmd = `cd "${root2}" && git log --name-only --pretty=format: | sort | uniq -c | sort -rn | head -100`;
+      const output = execSync(cmd, { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
+      for (const line of output.split("\n")) {
+        const match = line.trim().match(/^(\d+)\s+(.+)$/);
+        if (match && match[2]) {
+          gitCounts[match[2]] = parseInt(match[1]);
+        }
+      }
+    } catch (e) {
+      console.warn("[vicky] Git analysis skipped (not a git repo or access issue)");
+    }
     const scored = Object.entries(fileInfo).map(([file, info]) => ({
       file,
       ast_score: info.ast_nodes * 10,
       grep_score: grepCounts[file] || 0,
+      git_score: gitCounts[file] || 0,
       reference_score: info.references * 5,
-      total_score: info.ast_nodes * 10 + (grepCounts[file] || 0) + info.references * 5,
+      total_score: info.ast_nodes * 10 + (grepCounts[file] || 0) + (gitCounts[file] || 0) + info.references * 5,
       language: info.language
     }));
     scored.sort((a, b) => b.total_score - a.total_score);
@@ -23376,7 +23392,7 @@ function est_learn_seconds() {
 }
 function register6(server2, notify2) {
   server2.registerTool("learn", {
-    description: "Walk the KB: drain pending queue \u2192 promote to sources \u2192 relink. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
+    description: "Walk the KB with file-graph-first architecture: (1) analyze file importance from AST + git history + grep frequency \u2192 identify key files to index; (2) drain pending queue \u2192 promote to sources \u2192 relink semantic graph. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
     inputSchema: {
       count: external_exports.number().optional().describe("Max pending notes to drain (default: 20)")
     }
@@ -23390,6 +23406,17 @@ function register6(server2, notify2) {
     const job_id = create("learn");
     (async () => {
       try {
+        update(job_id, { progress: { phase: "analyze" } });
+        notify2("info", "vicky: analyzing file importance (AST + git history)...");
+        let importance = null;
+        try {
+          importance = await analyzeFileImportance(50);
+          if (importance.ok) {
+            notify2("info", `vicky: identified ${importance.top_files.length} key files for indexing.`);
+          }
+        } catch (e) {
+          notify2("info", `vicky: file importance analysis skipped (${e.message}). Continuing with pending queue.`);
+        }
         const wf = load_workflow();
         const triage = wf.default_workflow === "triage";
         const prio_rank = (p) => p === "high" ? 0 : p === "med" ? 1 : 2;
@@ -23467,6 +23494,7 @@ var init_learn = __esm({
     init_zod();
     init_fs();
     init_graph();
+    init_graph_importance();
     init_link();
     init_vault();
     init_init();
