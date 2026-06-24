@@ -1,14 +1,36 @@
 import { execSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import * as fs from './fs.js';
 
 /**
- * Analyze file importance based on AST dependencies and grep frequency.
- * Identifies which files are most referenced/important for indexing prioritization.
+ * Analyze file importance based on AST dependencies, git history, and grep frequency.
+ * Supports progressive tier-based indexing: work from most important → less important.
+ *
+ * Tier structure (default 100 files per tier):
+ *   Tier 0: files 0-99 (most important)
+ *   Tier 1: files 100-199
+ *   Tier 2: files 200-299
+ *   etc.
  */
 
-export async function analyzeFileImportance(limit = 30) {
+function getIndexedFiles(sourcesDir) {
+	try {
+		const indexed = new Set();
+		if (!existsSync(sourcesDir)) return indexed;
+		const sourceFiles = readdirSync(sourcesDir).filter(f => f.endsWith('.md'));
+		for (const sf of sourceFiles) {
+			const path = join(sourcesDir, sf);
+			const content = readFileSync(path, 'utf8');
+			// Look for frontmatter "indexed_file: path/to/file.ts"
+			const match = content.match(/^indexed_file:\s*(.+)$/m);
+			if (match) indexed.add(match[1].trim());
+		}
+		return indexed;
+	} catch { return new Set(); }
+}
+
+export async function analyzeFileImportance(limit = 30, tier = 0, tiersSize = 100) {
 	const astPath = join(fs.root(), '.graphify', '.graphify_ast.json');
 
 	if (!existsSync(astPath)) {
@@ -111,7 +133,21 @@ export async function analyzeFileImportance(limit = 30) {
 		// Sort by total score
 		scored.sort((a, b) => b.total_score - a.total_score);
 
-		const top = scored.slice(0, limit);
+		// Filter to tier range if specified
+		const tierStart = tier * tiersSize;
+		const tierEnd = (tier + 1) * tiersSize;
+		const indexed = getIndexedFiles(fs.sources());
+
+		let tiered = scored.filter((_, i) => i >= tierStart && i < tierEnd).filter(f => !indexed.has(f.file));
+
+		// If tier is empty or too few unindexed, fall back to limit
+		if (tiered.length === 0) {
+			tiered = scored.filter(f => !indexed.has(f.file)).slice(0, limit);
+		} else {
+			tiered = tiered.slice(0, limit);
+		}
+
+		const top = tiered.length > 0 ? tiered : scored.slice(0, limit);
 
 		console.log(`\n[vicky] Top ${limit} most important files:\n`);
 		for (let i = 0; i < top.length; i++) {
@@ -136,16 +172,82 @@ ${top.map((f, i) => `| ${i+1} | \`${f.file}\` | ${f.total_score} | ${f.language}
 
 Create vicky sources in this order for highest-value KB coverage.`;
 
+		// Calculate tier coverage
+		const tiersCovered = [];
+		for (let t = 0; t < Math.ceil(scored.length / tiersSize); t++) {
+			const tierStart = t * tiersSize;
+			const tierEnd = Math.min((t + 1) * tiersSize, scored.length);
+			const tierFiles = scored.slice(tierStart, tierEnd);
+			const indexed_in_tier = tierFiles.filter(f => indexed.has(f.file)).length;
+			tiersCovered.push({
+				tier: t,
+				total: tierFiles.length,
+				indexed: indexed_in_tier,
+				coverage: Math.round((indexed_in_tier / tierFiles.length) * 100),
+			});
+		}
+
 		return {
 			ok: true,
 			top_files: top.map(f => f.file),
 			scores: top,
 			markdown,
 			total_analyzed: scored.length,
+			current_tier: tier,
+			tier_size: tiersSize,
+			tier_coverage: tiersCovered,
 		};
 	} catch (e) {
 		return { ok: false, reason: 'parse_error', message: e.message };
 	}
+}
+
+export async function coverageReport(tiersSize = 100) {
+	const astPath = join(fs.root(), '.graphify', '.graphify_ast.json');
+	if (!existsSync(astPath)) {
+		return { ok: false, reason: 'no_ast', message: 'Run graphify extract first' };
+	}
+
+	const ast = JSON.parse(readFileSync(astPath, 'utf8'));
+	const fileInfo = {};
+
+	if (ast.nodes) {
+		for (const node of ast.nodes) {
+			if (!node.file) continue;
+			if (!fileInfo[node.file]) {
+				fileInfo[node.file] = { file: node.file, count: 0 };
+			}
+			fileInfo[node.file].count++;
+		}
+	}
+
+	const scored = Object.values(fileInfo)
+		.map(f => ({ ...f, score: f.count * 10 }))
+		.sort((a, b) => b.score - a.score);
+
+	const indexed = getIndexedFiles(fs.sources());
+
+	// Calculate tier coverage
+	const tiers = [];
+	for (let t = 0; t < Math.ceil(scored.length / tiersSize); t++) {
+		const tierStart = t * tiersSize;
+		const tierEnd = Math.min((t + 1) * tiersSize, scored.length);
+		const tierFiles = scored.slice(tierStart, tierEnd);
+		const indexed_in_tier = tierFiles.filter(f => indexed.has(f.file)).length;
+		tiers.push({
+			tier: t,
+			total: tierFiles.length,
+			indexed: indexed_in_tier,
+			coverage: Math.round((indexed_in_tier / tierFiles.length) * 100),
+		});
+	}
+
+	return {
+		ok: true,
+		tiers,
+		total_indexed: indexed.size,
+		total_files: scored.length,
+	};
 }
 
 export default analyzeFileImportance;

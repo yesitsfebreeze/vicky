@@ -9,7 +9,8 @@
  *   node vicky.js dashboard --write  → write Dashboard.report.md, print path
  *   node vicky.js dashboard --json   → raw Dataview JSON
  *   node vicky.js tag-context    → UserPromptSubmit hook; reads {prompt} from stdin, prints matching conclusion notes
- *   node vicky.js graph-importance [limit] → analyze file importance from AST, recommend sources to index
+ *   node vicky.js graph-importance [tier] [limit] → analyze file importance from AST, recommend sources to index (progressive tier-based)
+ *   node vicky.js coverage-report → show KB indexing progress by tier
  */
 
 const mode = process.argv[2] || 'mcp';
@@ -63,12 +64,20 @@ if (mode === 'init') {
 	process.exit(0);
 } else if (mode === 'graph-importance') {
 	try {
-		const limit = parseInt(process.argv[3]) || 30;
+		const tier = parseInt(process.argv[3]) || 0;
+		const limit = parseInt(process.argv[4]) || 30;
 		const { analyzeFileImportance } = await import('./graph-importance.js');
-		const result = await analyzeFileImportance(limit);
+		const result = await analyzeFileImportance(limit, tier);
 		if (result.ok) {
 			console.log(`\n${result.markdown}\n`);
-			console.log(`\nAnalyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
+			console.log(`\n[Tier ${result.current_tier}/${Math.ceil(result.total_analyzed / result.tier_size) - 1}] Analyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
+			if (result.tier_coverage.length > 0) {
+				console.log('\n📊 Coverage by tier:');
+				for (const t of result.tier_coverage) {
+					const bar = '█'.repeat(t.coverage / 5) + '░'.repeat(20 - t.coverage / 5);
+					console.log(`  Tier ${t.tier}: [${bar}] ${t.indexed}/${t.total} (${t.coverage}%)`);
+				}
+			}
 		} else {
 			console.error(`graph-importance: ${result.message}`);
 			process.exit(1);
@@ -77,9 +86,32 @@ if (mode === 'init') {
 		console.error(`graph-importance: ${e.message}`);
 		process.exit(1);
 	}
+} else if (mode === 'coverage-report') {
+	try {
+		const { coverageReport } = await import('./graph-importance.js');
+		const result = await coverageReport();
+		if (result.ok) {
+			console.log('\n📈 KB Coverage Report\n');
+			console.log(`Total files analyzed: ${result.total_files}`);
+			console.log(`Total files indexed: ${result.total_indexed}\n`);
+			console.log('Coverage by tier:');
+			for (const tier of result.tiers) {
+				const bar = '█'.repeat(Math.floor(tier.coverage / 5)) + '░'.repeat(20 - Math.floor(tier.coverage / 5));
+				console.log(`  Tier ${tier.tier}: [${bar}] ${tier.indexed}/${tier.total} (${tier.coverage}%)`);
+			}
+			const totalCoverage = Math.round((result.total_indexed / result.total_files) * 100);
+			console.log(`\nOverall: ${totalCoverage}% complete\n`);
+		} else {
+			console.error(`coverage-report: ${result.message}`);
+			process.exit(1);
+		}
+	} catch (e) {
+		console.error(`coverage-report: ${e.message}`);
+		process.exit(1);
+	}
 } else if (mode === 'mcp' || mode === undefined) {
 	await import('./mcp-server.js');
 } else {
-	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance`);
+	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance | coverage-report`);
 	process.exit(2);
 }
