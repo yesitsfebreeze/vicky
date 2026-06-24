@@ -4,6 +4,17 @@ import { patch_frontmatter_related } from './vault.js';
 import { query_graph } from './graph.js';
 import { slugify } from './slug.js';
 
+// Verify critical imports
+if (!patch_frontmatter_related) {
+	throw new Error('patch_frontmatter_related import failed');
+}
+if (!query_graph) {
+	throw new Error('query_graph import failed');
+}
+if (!existsSync) {
+	throw new Error('fs-wrapper imports failed');
+}
+
 const BATCH = 10;
 
 function list_md_files(dir) {
