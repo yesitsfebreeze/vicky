@@ -6,7 +6,7 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { parse_fm_list } from '../vault.js';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 
 // ── tunables ─────────────────────────────────────────────────────────────────────────────────
 

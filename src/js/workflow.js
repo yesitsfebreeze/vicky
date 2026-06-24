@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'fs';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 
 const DEFAULTS = {
 	active_focus: [],

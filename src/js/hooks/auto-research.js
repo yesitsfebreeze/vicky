@@ -6,7 +6,7 @@
  */
 
 import { existsSync, readdirSync } from 'fs';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 
 // Check if there are pending research items
 function hasPending() {

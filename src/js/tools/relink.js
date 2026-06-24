@@ -1,5 +1,5 @@
 import { readdirSync } from 'fs';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import { update_kb } from '../graph.js';
 import { relink_dir } from '../link.js';
 import { ensure_init } from '../init.js';

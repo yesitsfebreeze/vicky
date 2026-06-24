@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { basename } from 'path';
 import { run_dql } from '../dashboard.js';
 import { ensure_init } from '../init.js';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 
 function docs() {
 	const r = fs.root().replace(/\\/g, '/').replace(/\/+$/, '');

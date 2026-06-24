@@ -39,9 +39,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// js/fs.js
-var fs_exports = {};
-__export(fs_exports, {
+// js/paths.js
+var paths_exports = {};
+__export(paths_exports, {
   absorbed: () => absorbed,
   conclusions: () => conclusions,
   dashboard_md: () => dashboard_md,
@@ -63,8 +63,8 @@ __export(fs_exports, {
 import { dirname, join, basename, resolve } from "path";
 import { fileURLToPath } from "url";
 var SKILL_DIR, root, kb_base, sources, absorbed, conclusions, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
-var init_fs = __esm({
-  "js/fs.js"() {
+var init_paths = __esm({
+  "js/paths.js"() {
     SKILL_DIR = dirname(fileURLToPath(import.meta.url));
     root = () => process.env.VICKY_ROOT || "vicky";
     kb_base = () => root();
@@ -141,7 +141,7 @@ async function ensure_init() {
 var GRAPHIFYIGNORE, initialized, init_default;
 var init_init = __esm({
   "js/init.js"() {
-    init_fs();
+    init_paths();
     GRAPHIFYIGNORE = [
       "# Vicky-managed \u2014 controls graphify extract scope.",
       "# Keep sources/ and conclusions/ as the only content corpora.",
@@ -286,7 +286,7 @@ function build_dashboard() {
 var EVAL_TIMEOUT_MS;
 var init_dashboard = __esm({
   "js/dashboard.js"() {
-    init_fs();
+    init_paths();
     EVAL_TIMEOUT_MS = Number(process.env.OBSIDIAN_TIMEOUT_MS) || 1e4;
   }
 });
@@ -627,7 +627,7 @@ ${ss.map((s) => `  - ${slugify(s)}`).join("\n")}`
 }
 var init_vault = __esm({
   "js/vault.js"() {
-    init_fs();
+    init_paths();
     init_slug();
     init_slug();
   }
@@ -740,7 +740,7 @@ var MAX_TAGS, MAX_NOTES, SNIPPET_LEN;
 var init_tag_context = __esm({
   "js/hooks/tag-context.js"() {
     init_vault();
-    init_fs();
+    init_paths();
     MAX_TAGS = 5;
     MAX_NOTES = 15;
     SNIPPET_LEN = 150;
@@ -949,7 +949,7 @@ async function coverageReport(tiersSize = 100) {
 var graph_importance_default;
 var init_graph_importance = __esm({
   "js/graph-importance.js"() {
-    init_fs();
+    init_paths();
     graph_importance_default = analyzeFileImportance;
   }
 });
@@ -1035,7 +1035,7 @@ async function runMonitor(updateInterval = 5e3) {
 var monitor_default;
 var init_monitor = __esm({
   "js/monitor.js"() {
-    init_fs();
+    init_paths();
     init_graph_importance();
     monitor_default = runMonitor;
   }
@@ -22900,15 +22900,15 @@ async function query_graph_hits(question, prefix = null, graphPath = kb_graph(),
   for (const line of lines) {
     const m = line.match(/^NODE\s+(.+?)\.md\s+\[/);
     if (!m) continue;
-    const src = m[1].replace(/\\/g, "/");
-    if (prefix && !(src.includes(`/${prefix}/`) || src.startsWith(`${prefix}/`))) continue;
-    const note_path = src.startsWith(root2 + "/") ? src + ".md" : `${root2}/${src}.md`;
+    const src2 = m[1].replace(/\\/g, "/");
+    if (prefix && !(src2.includes(`/${prefix}/`) || src2.startsWith(`${prefix}/`))) continue;
+    const note_path = src2.startsWith(root2 + "/") ? src2 + ".md" : `${root2}/${src2}.md`;
     if (seen.has(note_path)) continue;
-    const inlinks = inlink_map.get(src + ".md") || inlink_map.get(note_path) || 0;
+    const inlinks = inlink_map.get(src2 + ".md") || inlink_map.get(note_path) || 0;
     const positional = 1 / (1 + rank / 5);
     const inlink_boost = Math.log(1 + inlinks) / 10;
     const score = +(0.5 + positional * 0.3 + Math.min(0.2, inlink_boost)).toFixed(4);
-    const snippet = (snippet_map.get(src + ".md") || snippet_map.get(note_path) || "").slice(0, 200);
+    const snippet = (snippet_map.get(src2 + ".md") || snippet_map.get(note_path) || "").slice(0, 200);
     seen.set(note_path, { note_path, score, inlinks, snippet });
     rank++;
     if (seen.size >= limit) break;
@@ -22951,7 +22951,7 @@ function build_snippet_map(graphPath) {
 var sh_bg, sh_async, graphifyAvailable, FREE_MODELS, update_kb;
 var init_graph = __esm({
   "js/graph.js"() {
-    init_fs();
+    init_paths();
     sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
       const p = spawn(cmd, [], { shell: true, stdio: "ignore", windowsHide: true, ...opts });
       p.on("close", res);
@@ -23119,7 +23119,7 @@ function should_auto_enqueue() {
 var DEFAULTS, cache, cache_mtime;
 var init_workflow = __esm({
   "js/workflow.js"() {
-    init_fs();
+    init_paths();
     DEFAULTS = {
       active_focus: [],
       priority_tags: [],
@@ -23188,7 +23188,7 @@ var TOP_K;
 var init_query = __esm({
   "js/tools/query.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_graph();
     init_vault();
     init_init();
@@ -23273,7 +23273,7 @@ var TOP_K2;
 var init_research_gap = __esm({
   "js/tools/research-gap.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_graph();
     init_vault();
     init_init();
@@ -23312,7 +23312,7 @@ ID: ${slug}` }] };
 var init_remember = __esm({
   "js/tools/remember.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_vault();
     init_init();
   }
@@ -23342,7 +23342,7 @@ function register4(server2) {
 var init_conclude = __esm({
   "js/tools/conclude.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_vault();
     init_init();
   }
@@ -23489,14 +23489,14 @@ function register5(server2, notify2) {
         notify2("info", `vicky relink: graph built via ${upd?.backend ?? "graphify"}; querying for related links...`);
         update(job_id, { progress: { phase: "relink" } });
         const graph = kb_graph();
-        const [src, con] = await Promise.all([
+        const [src2, con2] = await Promise.all([
           relink_dir(sources(), graph),
           relink_dir(conclusions(), graph)
         ]);
-        notify2("info", `vicky relink done: ${src.patched + con.patched} relinked (${src.patched}/${src.total} sources, ${con.patched}/${con.total} conclusions).`);
+        notify2("info", `vicky relink done: ${src2.patched + con2.patched} relinked (${src2.patched}/${src2.total} sources, ${con2.patched}/${con2.total} conclusions).`);
         update(job_id, {
           status: "done",
-          counts: { relinked: src.patched + con.patched, sources_relinked: src.patched, sources_total: src.total, conclusions_relinked: con.patched, conclusions_total: con.total }
+          counts: { relinked: src2.patched + con2.patched, sources_relinked: src2.patched, sources_total: src2.total, conclusions_relinked: con2.patched, conclusions_total: con2.total }
         });
       } catch (e) {
         update(job_id, { status: "failed", error: e.message });
@@ -23508,7 +23508,7 @@ function register5(server2, notify2) {
 }
 var init_relink = __esm({
   "js/tools/relink.js"() {
-    init_fs();
+    init_paths();
     init_graph();
     init_link();
     init_init();
@@ -23640,17 +23640,30 @@ ${ctx.trim()}
         if (patched) notify2("info", `vicky: backfilled frontmatter on ${patched} existing sources.`);
         update(job_id, { progress: { phase: "relink" }, counts: { promoted, patched } });
         notify2("info", "vicky: rebuilding semantic graph...");
-        const upd = await update_kb();
-        if (upd && upd.ok === false) {
-          const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)" : upd.reason === "graphify_missing" ? "run `npm install` in vicky plugin root" : "corpus may be too small";
-          notify2("info", `vicky learn: graph not rebuilt (${upd.reason}) \u2014 ${hint}. Relinking against stale graph.`);
+        try {
+          const upd = await update_kb();
+          if (upd && upd.ok === false) {
+            const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)" : upd.reason === "graphify_missing" ? "run `npm install` in vicky plugin root" : "corpus may be too small";
+            notify2("info", `vicky learn: graph not rebuilt (${upd.reason}) \u2014 ${hint}. Relinking against stale graph.`);
+          }
+        } catch (graphErr) {
+          notify2("error", `vicky learn: update_kb failed: ${graphErr.message}`);
         }
         notify2("info", "vicky: relinking...");
-        const graph = kb_graph();
-        const [src, con] = await Promise.all([
-          relink_dir(sources(), graph),
-          relink_dir(conclusions(), graph)
-        ]);
+        try {
+          const graph = kb_graph();
+          const srcPath = sources();
+          const conPath = conclusions();
+          console.error("[vicky-debug] graph:", graph, "srcPath:", srcPath, "conPath:", conPath);
+          const [src2, con2] = await Promise.all([
+            relink_dir(srcPath, graph),
+            relink_dir(conPath, graph)
+          ]);
+          console.error("[vicky-debug] relink complete:", src2, con2);
+        } catch (relinkErr) {
+          notify2("error", `vicky learn: relink failed: ${relinkErr.message}`);
+          throw relinkErr;
+        }
         notify2("info", `vicky done: ${src.patched + con.patched} relinked.`);
         update(job_id, {
           status: "done",
@@ -23667,7 +23680,7 @@ ${ctx.trim()}
 var init_learn = __esm({
   "js/tools/learn.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_graph();
     init_graph_importance();
     init_link();
@@ -23731,7 +23744,7 @@ var PENDING_TYPE, MAX_TITLE;
 var init_enqueue = __esm({
   "js/tools/enqueue.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_vault();
     init_init();
     PENDING_TYPE = "research-pending";
@@ -23901,7 +23914,7 @@ var init_dql = __esm({
     init_zod();
     init_dashboard();
     init_init();
-    init_fs();
+    init_paths();
   }
 });
 
@@ -24000,7 +24013,7 @@ Run /vicky:learn to rebuild graph.`
 var init_crystalize = __esm({
   "js/tools/crystalize.js"() {
     init_zod();
-    init_fs();
+    init_paths();
     init_vault();
     init_slug();
     init_init();
@@ -24082,7 +24095,7 @@ if (mode === "init") {
   const args = process.argv.slice(3);
   const { build_dashboard: build_dashboard2 } = await Promise.resolve().then(() => (init_dashboard(), dashboard_exports));
   const { mkdirSync: mkdirSync3, writeFileSync: writeFileSync4 } = await import("fs");
-  const fs = await Promise.resolve().then(() => (init_fs(), fs_exports));
+  const fs = await Promise.resolve().then(() => (init_paths(), paths_exports));
   try {
     const { data, markdown } = build_dashboard2();
     if (args.includes("--json")) {

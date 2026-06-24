@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, statSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import { query_graph, update_kb } from '../graph.js';
 import { analyzeFileImportance } from '../graph-importance.js';
 import { relink_dir } from '../link.js';
@@ -126,6 +126,7 @@ export function register(server, notify) {
 				jobs.update(job_id, { progress: { phase: 'relink' }, counts: { promoted, patched } });
 
 				notify('info', 'vicky: rebuilding semantic graph...');
+				try {
 					const upd = await update_kb();
 					if (upd && upd.ok === false) {
 						const hint = upd.reason === 'no_backend'
@@ -135,12 +136,24 @@ export function register(server, notify) {
 								: 'corpus may be too small';
 						notify('info', `vicky learn: graph not rebuilt (${upd.reason}) — ${hint}. Relinking against stale graph.`);
 					}
-					notify('info', 'vicky: relinking...');
-				const graph = fs.kb_graph();
-				const [src, con] = await Promise.all([
-					relink_dir(fs.sources(), graph),
-					relink_dir(fs.conclusions(), graph),
-				]);
+				} catch (graphErr) {
+					notify('error', `vicky learn: update_kb failed: ${graphErr.message}`);
+				}
+				notify('info', 'vicky: relinking...');
+				try {
+					const graph = fs.kb_graph();
+					const srcPath = fs.sources();
+					const conPath = fs.conclusions();
+					console.error('[vicky-debug] graph:', graph, 'srcPath:', srcPath, 'conPath:', conPath);
+					const [src, con] = await Promise.all([
+						relink_dir(srcPath, graph),
+						relink_dir(conPath, graph),
+					]);
+					console.error('[vicky-debug] relink complete:', src, con);
+				} catch (relinkErr) {
+					notify('error', `vicky learn: relink failed: ${relinkErr.message}`);
+					throw relinkErr;
+				}
 				notify('info', `vicky done: ${src.patched + con.patched} relinked.`);
 
 				jobs.update(job_id, {

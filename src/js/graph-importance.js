@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 
 /**
  * Analyze file importance based on AST dependencies, git history, and grep frequency.

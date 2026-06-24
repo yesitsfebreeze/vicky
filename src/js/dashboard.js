@@ -17,7 +17,7 @@
 import { execFileSync } from 'child_process';
 import { mkdirSync, writeFileSync } from 'fs';
 import { basename } from 'path';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 
 // Build DQL FROM-source strings rooted at fs.root().
 // When VICKY_ROOT is unset, root='vicky' and notes live at <vault>/vicky/<folder>.

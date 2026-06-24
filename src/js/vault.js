@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync, renameSync } from 'fs';
 import { join, dirname } from 'path';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 import { slugify, resolve_slug, match_prefix } from './slug.js';
 export { slugify, resolve_slug, match_prefix } from './slug.js';
 

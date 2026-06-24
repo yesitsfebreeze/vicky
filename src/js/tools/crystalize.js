@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { readFileSync } from 'fs';
 import { basename } from 'path';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import {
   absorb_source,
   find_source,

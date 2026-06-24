@@ -1,7 +1,7 @@
 import { exec, spawn } from 'child_process';
 import { existsSync, readFileSync, renameSync, cpSync, rmSync } from 'fs';
 import { join, resolve, dirname } from 'path';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 
 const sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
 	const p = spawn(cmd, [], { shell: true, stdio: 'ignore', windowsHide: true, ...opts });

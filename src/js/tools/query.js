@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import { query_graph_hits } from '../graph.js';
 import { search_hits } from '../vault.js';
 import { ensure_init } from '../init.js';

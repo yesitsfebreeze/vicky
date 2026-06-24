@@ -10,7 +10,7 @@
 
 import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 
 const GRAPHIFYIGNORE = [
 	'# Vicky-managed — controls graphify extract scope.',

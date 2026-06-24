@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { join } from 'path';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import { save_note } from '../vault.js';
 import { ensure_init } from '../init.js';
 

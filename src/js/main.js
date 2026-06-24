@@ -24,7 +24,7 @@ if (mode === 'init') {
 	const args = process.argv.slice(3);
 	const { build_dashboard } = await import('./dashboard.js');
 	const { mkdirSync, writeFileSync } = await import('fs');
-	const fs = await import('./fs.js');
+	const fs = await import('./paths.js');
 	try {
 		const { data, markdown } = build_dashboard();
 		if (args.includes('--json')) {

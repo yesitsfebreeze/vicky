@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import { enqueue_research, list_pending, slugify } from '../vault.js';
 import { ensure_init } from '../init.js';
 
