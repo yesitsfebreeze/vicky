@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, unlink
 import { join, dirname } from "path";
 import * as fs from "./paths.js";
 import { slugify, resolve_slug, match_prefix } from "./slug.js";
+import { slugify as slugify2, resolve_slug as resolve_slug2, match_prefix as match_prefix2 } from "./slug.js";
 function search_hits(dir, query, limit = 10) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
@@ -205,23 +206,26 @@ ${ss.map((s) => `  - "[[${slugify(s)}]]"`).join("\n")}`
   );
 }
 function patch_frontmatter_related(filePath, links) {
-  console.error("[vicky-vault] patch_frontmatter_related called", { filePath, linksLen: links?.length, slugifyType: typeof slugify });
-  try {
-    patch_fm_list(filePath, "related", links, (ll) => {
-      console.error("[vicky-vault] formatter called with", { llLen: ll?.length });
-      const result = `related:
-${ll.map((t) => {
-        console.error("[vicky-vault] slugifying", { t, slugifyType: typeof slugify });
-        return `  - "[[${slugify(t)}]]"`;
-      }).join("\n")}`;
-      console.error("[vicky-vault] formatter returning", { resultLen: result.length });
-      return result;
-    });
-    console.error("[vicky-vault] patch_fm_list completed");
-  } catch (err) {
-    console.error("[vicky-vault] Error in patch_frontmatter_related:", err);
-    throw err;
+  if (!links?.length) return;
+  let content = readFileSync(filePath, "utf8");
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  let body = fm ? strip_fm_key(fm[1], "related") : "";
+  const related_yaml = `related:
+${links.map((t) => `  - "[[${slugify(t)}]]"`).join("\n")}`;
+  if (body) body += "\n" + related_yaml;
+  else body = related_yaml;
+  if (fm) {
+    content = content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${body.trim()}
+---`);
+  } else {
+    content = `---
+${body}
+---
+
+` + content;
   }
+  writeFileSync(filePath, content);
 }
 function find_source(name) {
   return resolve_slug(name, fs.sources());
@@ -286,11 +290,14 @@ export {
   find_source,
   gen_source_id,
   list_pending,
+  match_prefix2 as match_prefix,
   parse_fm_list,
   patch_frontmatter_derived_from,
   patch_frontmatter_related,
   patch_frontmatter_sources,
   read_pending,
+  resolve_slug2 as resolve_slug,
   save_note,
-  search_hits
+  search_hits,
+  slugify2 as slugify
 };
