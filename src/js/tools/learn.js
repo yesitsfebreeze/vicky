@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, statSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
-import * as fs from '../fs.js';
+import * as fs from '../paths.js';
 import { query_graph, update_kb } from '../graph.js';
 import { analyzeFileImportance } from '../graph-importance.js';
 import { relink_dir } from '../link.js';

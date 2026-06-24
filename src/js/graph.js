@@ -3,11 +3,30 @@ import { existsSync, readFileSync, renameSync, cpSync, rmSync } from './fs-wrapp
 import { join, resolve, dirname } from 'path';
 import * as fs from './paths.js';
 
-const sh_bg = (cmd, opts = {}) => new Promise((res, rej) => {
-	const p = spawn(cmd, [], { shell: true, stdio: 'ignore', windowsHide: true, ...opts });
-	p.on('close', res);
-	p.on('error', rej);
-});
+// Run a shell command to completion. `timeoutMs` (0 = unbounded) kills the
+// child and rejects with a TIMEOUT error so callers can degrade gracefully —
+// without it a hung subprocess (e.g. graphify stuck on an LLM call) would hang
+// the awaiting job forever.
+const sh_bg = (cmd, opts = {}) => {
+	const { timeoutMs = 0, ...spawnOpts } = opts;
+	return new Promise((res, rej) => {
+		const p = spawn(cmd, [], { shell: true, stdio: 'ignore', windowsHide: true, ...spawnOpts });
+		let timer = null;
+		if (timeoutMs > 0) {
+			timer = setTimeout(() => {
+				try { p.kill('SIGKILL'); } catch { /* already gone */ }
+				rej(new Error(`TIMEOUT after ${timeoutMs}ms: ${cmd.slice(0, 60)}`));
+			}, timeoutMs);
+		}
+		p.on('close', (code) => { if (timer) clearTimeout(timer); res(code); });
+		p.on('error', (err) => { if (timer) clearTimeout(timer); rej(err); });
+	});
+};
+
+// Bound on the synchronous graphify extraction in update_kb. Override via
+// VICKY_EXTRACT_TIMEOUT_MS. Default 180s: enough for a modest corpus, but the
+// job will never hang indefinitely on a stuck extraction.
+const EXTRACT_TIMEOUT_MS = Number(process.env.VICKY_EXTRACT_TIMEOUT_MS) || 180_000;
 
 const sh_async = (cmd, opts = {}) => new Promise((res, rej) =>
 	exec(cmd, { timeout: 60_000, encoding: 'utf8', ...opts }, (err, stdout) => err ? rej(err) : res(stdout ?? ''))
@@ -66,8 +85,16 @@ export const update_kb = async () => {
 
 	const model = detect_model(backend);
 	const modelArg = model ? ` --model "${model}"` : '';
-	// Add token-budget to enable chunking for large corpuses (avoids LLM timeouts on >1M word corpuses)
-	await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root });
+	// Add token-budget to enable chunking for large corpuses (avoids LLM timeouts on >1M word corpuses).
+	// Bounded by EXTRACT_TIMEOUT_MS: if graphify stalls on the LLM call, we abort
+	// rather than hang the learn job, and fall back to the existing graph.
+	try {
+		await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root, timeoutMs: EXTRACT_TIMEOUT_MS });
+	} catch (err) {
+		const reason = err.message?.startsWith('TIMEOUT') ? 'extract_timeout' : 'extract_failed';
+		console.error(`[vicky] graphify extract ${reason}: ${err.message}`);
+		return { ok: false, reason };
+	}
 
 	// In workspace mode, extraction root ≠ KB base: move results to KB location
 	if (extraction_graphify_dir !== kb_graphify_dir && existsSync(extraction_graphify_dir)) {
@@ -81,7 +108,11 @@ export const update_kb = async () => {
 	const graph = fs.kb_graph();
 	if (!existsSync(graph)) return { ok: false, reason: 'no_graph_produced' };
 	const wikiDir = fs.graphs();
-	await sh_bg(`graphify export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root });
+	try {
+		await sh_bg(`graphify export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root, timeoutMs: EXTRACT_TIMEOUT_MS });
+	} catch (err) {
+		console.warn(`[vicky] graphify export wiki failed/timed out: ${err.message}`);
+	}
 	const idx = join(wikiDir, 'index.md');
 	if (existsSync(idx)) {
 		try { renameSync(idx, fs.kb_wiki()); } catch (err) { console.warn('[vicky] Failed to rename graph index:', err.message); }

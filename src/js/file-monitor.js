@@ -1,6 +1,6 @@
 import { existsSync, statSync, readdirSync } from 'fs';
 import { join } from 'path';
-import * as fs from './fs.js';
+import * as fs from './paths.js';
 import { relink_dir } from './link.js';
 import * as jobs from './jobs.js';
 
