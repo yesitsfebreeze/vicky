@@ -61,7 +61,8 @@ export const update_kb = async () => {
 
 	const model = detect_model(backend);
 	const modelArg = model ? ` --model "${model}"` : '';
-	await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg}`, { cwd: root });
+	// Add token-budget to enable chunking for large corpuses (avoids LLM timeouts on >1M word corpuses)
+	await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root });
 
 	// In workspace mode, extraction root ≠ KB base: move results to KB location
 	if (extraction_graphify_dir !== kb_graphify_dir && existsSync(extraction_graphify_dir)) {
