@@ -23581,11 +23581,15 @@ function register5(server2, notify2) {
         const upd = await update_kb();
         if (upd && upd.ok === false) {
           const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY) and retry" : upd.reason === "graphify_missing" ? "run `npm install` in the vicky plugin root" : "corpus may be too small for a graph";
-          notify2("info", `vicky relink: graph not produced (${upd.reason}) \u2014 ${hint}.`);
-          update(job_id, { status: "failed", error: `graph_not_produced:${upd.reason}` });
-          return;
+          if (!existsSync(kb_graph())) {
+            notify2("info", `vicky relink: graph not produced (${upd.reason}) \u2014 ${hint}.`);
+            update(job_id, { status: "failed", error: `graph_not_produced:${upd.reason}` });
+            return;
+          }
+          notify2("info", `vicky relink: graph not rebuilt (${upd.reason}) \u2014 ${hint}. Relinking against existing graph.`);
+        } else {
+          notify2("info", `vicky relink: graph built via ${upd?.backend ?? "graphify"}; querying for related links...`);
         }
-        notify2("info", `vicky relink: graph built via ${upd?.backend ?? "graphify"}; querying for related links...`);
         update(job_id, { progress: { phase: "relink" } });
         const graph = kb_graph();
         const [src, con] = await Promise.all([

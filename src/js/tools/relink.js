@@ -1,4 +1,4 @@
-import { readdirSync } from '../fs-wrapper.js';
+import { readdirSync, existsSync } from '../fs-wrapper.js';
 import * as fs from '../paths.js';
 import { update_kb } from '../graph.js';
 import { relink_dir } from '../link.js';
@@ -37,11 +37,18 @@ export function register(server, notify) {
 						: upd.reason === 'graphify_missing'
 							? 'run `npm install` in the vicky plugin root'
 							: 'corpus may be too small for a graph';
-					notify('info', `vicky relink: graph not produced (${upd.reason}) — ${hint}.`);
-					jobs.update(job_id, { status: 'failed', error: `graph_not_produced:${upd.reason}` });
-					return;
+					// Graph rebuild failed — but if a graph already exists we can still
+					// rebuild related: links from it. Only give up when there's nothing
+					// to relink against.
+					if (!existsSync(fs.kb_graph())) {
+						notify('info', `vicky relink: graph not produced (${upd.reason}) — ${hint}.`);
+						jobs.update(job_id, { status: 'failed', error: `graph_not_produced:${upd.reason}` });
+						return;
+					}
+					notify('info', `vicky relink: graph not rebuilt (${upd.reason}) — ${hint}. Relinking against existing graph.`);
+				} else {
+					notify('info', `vicky relink: graph built via ${upd?.backend ?? 'graphify'}; querying for related links...`);
 				}
-				notify('info', `vicky relink: graph built via ${upd?.backend ?? 'graphify'}; querying for related links...`);
 
 				jobs.update(job_id, { progress: { phase: 'relink' } });
 				const graph = fs.kb_graph();
