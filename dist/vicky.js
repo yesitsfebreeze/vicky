@@ -22675,7 +22675,7 @@ var init_graph = __esm({
       const kb_graphify_dir = graphify_out();
       const model = detect_model(backend);
       const modelArg = model ? ` --model "${model}"` : "";
-      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg}`, { cwd: root2 });
+      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root2 });
       if (extraction_graphify_dir !== kb_graphify_dir && existsSync5(extraction_graphify_dir)) {
         try {
           cpSync(extraction_graphify_dir, kb_graphify_dir, { recursive: true, force: true });
