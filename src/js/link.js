@@ -35,12 +35,20 @@ export async function relink_dir(dir, graphPath, notify = null) {
 	let patched = 0;
 	for (let i = 0; i < files.length; i += BATCH) {
 		await Promise.all(files.slice(i, i + BATCH).map(async ({ full, name }) => {
-			const stem = name.replace(/\.md$/, '');
-			const raw = await query_graph(stem, graphPath);
-			const links = parse_related(raw, stem);
-			if (links.length) {
-				patch_frontmatter_related(full, links);
-				patched++;
+			try {
+				const stem = name.replace(/\.md$/, '');
+				const raw = await query_graph(stem, graphPath);
+				const links = parse_related(raw, stem);
+				if (links.length) {
+					if (typeof patch_frontmatter_related !== 'function') {
+						throw new Error(`patch_frontmatter_related is not a function: ${typeof patch_frontmatter_related}`);
+					}
+					patch_frontmatter_related(full, links);
+					patched++;
+				}
+			} catch (err) {
+				console.error(`[vicky-link] Error in relink for ${name}:`, err.message);
+				throw err;
 			}
 		}));
 	}
