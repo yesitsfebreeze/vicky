@@ -50,7 +50,6 @@ async function relink_dir(dir, graphPath, notify = null) {
         }
       } catch (err) {
         console.error(`[vicky-link] Error in relink for ${name}:`, err.message);
-        throw err;
       }
     }));
   }

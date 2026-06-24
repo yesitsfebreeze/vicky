@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { join } from "path";
-import { existsSync, readFileSync, writeFileSync, statSync, readdirSync } from "../fs-wrapper.js";
+import { existsSync, readFileSync, writeFileSync, statSync, readdirSync } from "fs";
 import { execSync } from "child_process";
-import * as fs from "../paths.js";
+import * as fs from "../fs.js";
 import { query_graph, update_kb } from "../graph.js";
 import { analyzeFileImportance } from "../graph-importance.js";
 import { relink_dir } from "../link.js";
@@ -57,11 +57,35 @@ function est_learn_seconds() {
     return 5;
   }
 }
+function get_tier_state() {
+  try {
+    const stateFile = join(fs.root(), "vicky", ".tier-state.json");
+    if (existsSync(stateFile)) {
+      return JSON.parse(readFileSync(stateFile, "utf8"));
+    }
+  } catch (_) {
+  }
+  return { current_tier: 0, tiers_completed: [] };
+}
+function save_tier_state(state) {
+  try {
+    const stateFile = join(fs.root(), "vicky", ".tier-state.json");
+    writeFileSync(stateFile, JSON.stringify(state, null, 2));
+  } catch (_) {
+  }
+}
+function get_next_tier(coverage) {
+  if (!coverage || !coverage.tiers) return 0;
+  for (const tier of coverage.tiers) {
+    if (tier.coverage < 100) return tier.tier;
+  }
+  return coverage.tiers.length > 0 ? coverage.tiers[coverage.tiers.length - 1].tier : 0;
+}
 function register(server, notify) {
   server.registerTool("learn", {
-    description: "Walk the KB with file-graph-first architecture: (1) analyze file importance from AST + git history + grep frequency \u2192 identify key files to index; (2) drain pending queue \u2192 promote to sources \u2192 relink semantic graph. No external fetches and no stub conclusions \u2014 synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.",
+    description: "Fully automatic tier-progressive KB learning. Analyzes file importance, auto-detects highest unprocessed tier, drains pending tier-by-tier, relinks graph, sets up file monitors. No manual tier passing. Just call /vicky:learn \u2014 it finds the next tier and keeps going.",
     inputSchema: {
-      count: z.number().optional().describe("Max pending notes to drain (default: 20)")
+      count: z.number().optional().describe("Max pending notes to drain per tier (default: 20)")
     }
   }, async ({ count }) => {
     await ensure_init();
@@ -76,27 +100,44 @@ function register(server, notify) {
         jobs.update(job_id, { progress: { phase: "analyze" } });
         notify("info", "vicky: analyzing file importance (AST + git history)...");
         let importance = null;
+        let tierState = get_tier_state();
+        let currentTier = tierState.current_tier;
         try {
-          importance = await analyzeFileImportance(50);
+          const { coverageReport } = await import("../graph-importance.js");
+          const coverage = await coverageReport(100);
+          if (coverage.ok) {
+            const nextTier = get_next_tier(coverage);
+            currentTier = nextTier;
+            notify("info", `vicky: tier ${currentTier}: ${coverage.tiers[currentTier]?.coverage || 0}% indexed.`);
+          }
+          importance = await analyzeFileImportance(50, currentTier);
           if (importance.ok) {
-            notify("info", `vicky: identified ${importance.top_files.length} key files for indexing.`);
+            notify("info", `vicky: tier ${currentTier}: identified ${importance.top_files.length} files to source.`);
           }
         } catch (e) {
-          notify("info", `vicky: file importance analysis skipped (${e.message}). Continuing with pending queue.`);
+          notify("info", `vicky: analysis skipped (${e.message}). Using pending queue.`);
         }
         const wf = load_workflow();
         const triage = wf.default_workflow === "triage";
         const prio_rank = (p) => p === "high" ? 0 : p === "med" ? 1 : 2;
-        let pending = list_pending().map((pf) => ({ pf, info: (() => {
+        let allPending = list_pending().map((pf) => ({ pf, info: (() => {
           try {
             return read_pending(pf);
           } catch {
             return {};
           }
         })() })).map((x) => ({ ...x, prio: x.info && x.info.priority || "med" }));
-        if (triage) pending = pending.filter((x) => x.prio === "high");
-        pending.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
-        pending = pending.slice(0, n).map((x) => x.pf);
+        if (triage) allPending = allPending.filter((x) => x.prio === "high");
+        allPending.sort((a, b) => prio_rank(a.prio) - prio_rank(b.prio));
+        const tierFiles = importance?.ok ? importance.top_files : [];
+        const tierSet = new Set(tierFiles.map((f) => f.split("/").pop().toLowerCase()));
+        const [tieredPending, otherPending] = allPending.reduce((acc, x) => {
+          const slug = x.pf.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const matches = [...tierSet].some((f) => slug.includes(f.split(".")[0]) || f.includes(slug.split("-")[0]));
+          acc[matches ? 0 : 1].push(x);
+          return acc;
+        }, [[], []]);
+        const pending = [...tieredPending, ...otherPending].slice(0, n).map((x) => x.pf);
         jobs.update(job_id, { progress: { phase: "drain", total: pending.length } });
         let promoted = 0;
         let patched = 0;
@@ -130,41 +171,38 @@ ${ctx.trim()}
         }
         if (promoted) notify("info", `vicky: promoted ${promoted} pending \u2192 source.`);
         if (patched) notify("info", `vicky: backfilled frontmatter on ${patched} existing sources.`);
-        jobs.update(job_id, { progress: { phase: "relink" }, counts: { promoted, patched } });
+        jobs.update(job_id, { progress: { phase: "relink", tier: currentTier }, counts: { promoted, patched } });
         notify("info", "vicky: rebuilding semantic graph...");
-        try {
-          const upd = await update_kb();
-          if (upd && upd.ok === false) {
-            const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)" : upd.reason === "graphify_missing" ? "run `npm install` in vicky plugin root" : "corpus may be too small";
-            notify("info", `vicky learn: graph not rebuilt (${upd.reason}) \u2014 ${hint}. Relinking against stale graph.`);
-          }
-        } catch (graphErr) {
-          notify("error", `vicky learn: update_kb failed: ${graphErr.message}`);
+        const upd = await update_kb();
+        if (upd && upd.ok === false) {
+          const hint = upd.reason === "no_backend" ? "set GEMINI_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)" : upd.reason === "graphify_missing" ? "run `npm install` in vicky plugin root" : "corpus may be too small";
+          notify("info", `vicky learn: graph not rebuilt (${upd.reason}) \u2014 ${hint}. Relinking against stale graph.`);
         }
         notify("info", "vicky: relinking...");
-        try {
-          console.error("[vicky-learn] Checking fs object:", { fsType: typeof fs, fsKeys: Object.keys(fs || {}).slice(0, 5) });
-          console.error("[vicky-learn] kb_graph type:", typeof fs?.kb_graph);
-          console.error("[vicky-learn] relink_dir type:", typeof relink_dir);
-          const graph = fs.kb_graph();
-          const srcPath = fs.sources();
-          const conPath = fs.conclusions();
-          console.error("[vicky-learn] Paths obtained:", { graph, srcPath, conPath });
-          console.error("[vicky-learn] About to call relink_dir twice");
-          const [src2, con2] = await Promise.all([
-            relink_dir(srcPath, graph),
-            relink_dir(conPath, graph)
-          ]);
-          console.error("[vicky-learn] Relink complete:", { srcPatched: src2?.patched, conPatched: con2?.patched });
-        } catch (relinkErr) {
-          console.error("[vicky-learn] Relink error:", { message: relinkErr?.message, stack: relinkErr?.stack?.split("\n").slice(0, 5) });
-          notify("error", `vicky learn: relink failed: ${relinkErr.message}`);
-          throw relinkErr;
+        const graph = fs.kb_graph();
+        const [src, con] = await Promise.all([
+          relink_dir(fs.sources(), graph),
+          relink_dir(fs.conclusions(), graph)
+        ]);
+        notify("info", `vicky done: tier ${currentTier}: ${src.patched + con.patched} relinked.`);
+        if (promoted > 0 || src.patched > 0 || con.patched > 0) {
+          notify("info", "vicky: setting up file monitors for auto-reactions...");
+          const monitorsSetup = [
+            '/monitor create vicky/.graphify/graph.json --on change --run "/vicky:relink"',
+            '/monitor create vicky/.graphify/.graphify_ast.json --on change --run "/vicky:learn"',
+            '/monitor create vicky/pending/ --on new-file --run "/vicky:learn"',
+            '/monitor create vicky/sources/ --on change --run "/vicky:relink"'
+          ];
+          for (const cmd of monitorsSetup) {
+            notify("monitor-setup", cmd);
+          }
         }
-        notify("info", `vicky done: ${src.patched + con.patched} relinked.`);
+        tierState.current_tier = currentTier;
+        save_tier_state(tierState);
         jobs.update(job_id, {
           status: "done",
-          counts: { promoted, patched, relinked: src.patched + con.patched, sources_relinked: src.patched, conclusions_relinked: con.patched }
+          counts: { promoted, patched, relinked: src.patched + con.patched, sources_relinked: src.patched, conclusions_relinked: con.patched },
+          tier: currentTier
         });
       } catch (e) {
         jobs.update(job_id, { status: "failed", error: e.message });
