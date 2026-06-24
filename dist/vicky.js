@@ -48,6 +48,7 @@ __export(fs_exports, {
   graphify_out: () => graphify_out,
   graphifyignore: () => graphifyignore,
   graphs: () => graphs,
+  kb_base: () => kb_base,
   kb_graph: () => kb_graph,
   kb_wiki: () => kb_wiki,
   obsidian_cli: () => obsidian_cli,
@@ -61,11 +62,12 @@ __export(fs_exports, {
 });
 import { dirname, join, basename, resolve } from "path";
 import { fileURLToPath } from "url";
-var SKILL_DIR, root, sources, absorbed, conclusions, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
+var SKILL_DIR, root, kb_base, sources, absorbed, conclusions, pending, graphs, graphify_out, kb_graph, kb_wiki, graphifyignore, workflow_md, dashboard_md, report_md, template_dir, vault_name, obsidian_cli;
 var init_fs = __esm({
   "js/fs.js"() {
     SKILL_DIR = dirname(fileURLToPath(import.meta.url));
     root = () => process.env.VICKY_ROOT || "vicky";
+    kb_base = () => root();
     sources = () => join(root(), "sources");
     absorbed = () => join(sources(), ".absorbed");
     conclusions = () => join(root(), "conclusions");
@@ -22970,7 +22972,7 @@ var init_graph = __esm({
         return { ok: false, reason: "no_backend" };
       }
       const root2 = resolve2(root());
-      const kb_root = resolve2((void 0)());
+      const kb_root = resolve2(kb_base());
       const extraction_graphify_dir = join8(root2, ".graphify");
       const kb_graphify_dir = graphify_out();
       if (existsSync7(extraction_graphify_dir)) {

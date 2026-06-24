@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
 
 export const root         = () => process.env.VICKY_ROOT || 'vicky';
+export const kb_base      = () => root();
 export const sources      = () => join(root(), 'sources');
 export const absorbed     = () => join(sources(), '.absorbed');
 export const conclusions  = () => join(root(), 'conclusions');
