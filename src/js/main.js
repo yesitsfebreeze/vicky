@@ -11,6 +11,7 @@
  *   node vicky.js tag-context    → UserPromptSubmit hook; reads {prompt} from stdin, prints matching conclusion notes
  *   node vicky.js graph-importance [tier] [limit] → analyze file importance from AST, recommend sources to index (progressive tier-based)
  *   node vicky.js coverage-report → show KB indexing progress by tier
+ *   node vicky.js monitor [interval] → real-time KB building progress monitor (updates every N ms, default 5000)
  */
 
 const mode = process.argv[2] || 'mcp';
@@ -109,9 +110,18 @@ if (mode === 'init') {
 		console.error(`coverage-report: ${e.message}`);
 		process.exit(1);
 	}
+} else if (mode === 'monitor') {
+	try {
+		const interval = parseInt(process.argv[3]) || 5000;
+		const { runMonitor } = await import('./monitor.js');
+		await runMonitor(interval);
+	} catch (e) {
+		console.error(`monitor: ${e.message}`);
+		process.exit(1);
+	}
 } else if (mode === 'mcp' || mode === undefined) {
 	await import('./mcp-server.js');
 } else {
-	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance | coverage-report`);
+	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance | coverage-report | monitor`);
 	process.exit(2);
 }
