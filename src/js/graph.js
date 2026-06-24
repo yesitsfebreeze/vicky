@@ -1,5 +1,5 @@
 import { exec, spawn } from 'child_process';
-import { existsSync, readFileSync, renameSync, cpSync } from 'fs';
+import { existsSync, readFileSync, renameSync, cpSync, rmSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import * as fs from './fs.js';
 
@@ -58,6 +58,11 @@ export const update_kb = async () => {
 	const kb_root = resolve(fs.kb_base());
 	const extraction_graphify_dir = join(root, '.graphify');
 	const kb_graphify_dir = fs.graphify_out();
+
+	// Clear stale graphify output to detect if extraction produces fresh results
+	if (existsSync(extraction_graphify_dir)) {
+		try { rmSync(extraction_graphify_dir, { recursive: true, force: true }); } catch { /* ignore */ }
+	}
 
 	const model = detect_model(backend);
 	const modelArg = model ? ` --model "${model}"` : '';

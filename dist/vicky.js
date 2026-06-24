@@ -22670,6 +22670,7 @@ var init_graph = __esm({
         return { ok: false, reason: "no_backend" };
       }
       const root2 = resolve2(root());
+<<<<<<< Updated upstream
       const kb_root = resolve2((void 0)());
       const extraction_graphify_dir = join6(root2, ".graphify");
       const kb_graphify_dir = graphify_out();
@@ -22683,6 +22684,13 @@ var init_graph = __esm({
           console.warn(`[vicky] Failed to copy graphify results from ${extraction_graphify_dir} to ${kb_graphify_dir}: ${e.message}`);
         }
       }
+||||||| Stash base
+      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}`, { cwd: root2 });
+=======
+      const model = detect_model(backend);
+      const modelArg = model ? ` --model "${model}"` : "";
+      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg}`, { cwd: root2 });
+>>>>>>> Stashed changes
       const graph = kb_graph();
       if (!existsSync5(graph)) return { ok: false, reason: "no_graph_produced" };
       const wikiDir = graphs();
