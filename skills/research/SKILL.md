@@ -27,10 +27,12 @@ Example: `/vicky:research "GPU-driven indirect draw stream compaction"`
    `enqueue question="<follow-up>" requested_by=research
    sources=[<topic-slug>]`. Tag jargon → "what is X?" follow-ups,
    conflicting claims → "reconcile X vs Y".
-5. **Absorb** — call the `learn` MCP tool. It drains the pending stub
-   into `vicky/sources/<slug>.md` and relinks. No conclusion is created
-   here — that step is for the caller, once a real synthesis exists.
-   Mandatory — research without learn leaves orphan pending stubs.
+5. **Absorb** — call the `learn` MCP tool (tier-progressive, sets up monitors).
+   It drains the pending stub into `vicky/sources/<slug>.md`, relinks,
+   and creates Claude Code monitors on dependent files (graph.json, pending/,
+   sources/) for auto-reactions. No conclusion is created here — that step
+   is for the caller, once a real synthesis exists. Mandatory — research
+   without learn leaves orphan pending stubs.
 6. **Synthesise (optional, recommended)** — read the new source, then
    call `conclude title="<slug>" sources=[<slug>, ...]` with the
    takeaway. Skip only if the source data is too thin to draw a

@@ -4,9 +4,11 @@ Demand-driven knowledge base MCP server. Auto-enriches answers when gaps detecte
 
 ## What it does
 
+- **Install, run `/vicky:learn`, watch your KB grow automatically.** Tier-progressive, fully hands-off.
 - Local KB of sources + conclusions, queried by your agent
 - Detects gaps in your question, auto-enqueues research
-- Processes the queue when you ask, enriches conclusions
+- Processes the queue automatically (monitors + tier progression, no manual intervention)
+- Enriches conclusions via research, synthesis, and cross-linking
 - Exposes Dataview (DQL) directly to the agent for arbitrary KB queries
 - Ships an Obsidian vault preset (Dataview pre-configured)
 
@@ -65,7 +67,8 @@ Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` neve
 | Tool | Purpose |
 |------|---------|
 | `research-gap "q"` | Query KB; auto-enqueue if gap |
-| `research`         | Drain pending queue → conclusion stubs |
+| `research`         | Fetch sources, call learn (tier-progressive, sets up monitors) |
+| `learn [tier] [count]` | **Tier-progressive**: drain pending by importance, relink, create file monitors |
 | `query "q"`        | Direct KB lookup (focus-biased) |
 | `remember "title"` | Save findings to vault |
 | `enqueue "q"`      | Manual queue add |
@@ -73,6 +76,17 @@ Restart the agent so the MCP server reloads. `vicky/` is yours — `init()` neve
 | `dql "<query>"`    | Run arbitrary DQL. `query="help"` for syntax |
 | `relink`           | Rebuild link graph |
 | `web-search`       | Web research helper |
+
+### File Monitors (Claude Code)
+
+When you run `/vicky:learn`, it instructs Claude Code to create monitors on dependent files:
+
+- **`.graphify/graph.json` changes** → auto-run `/vicky:relink` (refresh links)
+- **`.graphify/.graphify_ast.json` changes** → auto-run `/vicky:learn` (re-analyze importance)
+- **`pending/` grows** → auto-run `/vicky:learn` (drain queue)
+- **`sources/` changes** → auto-run `/vicky:relink` (update graph)
+
+No periodic polling needed — reactions trigger instantly when files change. Manage monitors with `/monitor list`, `/monitor pause vicky/`, `/monitor delete vicky/...`. See [MONITORS.md](docs/MONITORS.md) for details.
 
 ## Layout
 

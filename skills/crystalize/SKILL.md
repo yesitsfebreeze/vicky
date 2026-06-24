@@ -18,7 +18,7 @@ For a target conclusion + list of source slugs, the `crystalize` MCP tool:
 3. Appends absorbed slugs to the conclusion `derived_from:` frontmatter.
 4. Leaves conclusion body untouched (manual cleanup if you want to strip body wikilinks).
 
-Run `/vicky:learn` after to rebuild the graph.
+Run `/vicky:learn` after to rebuild the graph and set up file monitors for auto-reactions on dependent file changes.
 
 ## When to crystalize
 

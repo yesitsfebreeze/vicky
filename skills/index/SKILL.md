@@ -75,7 +75,7 @@ A file is "changed" when its sha / mtime / size differs from the recorded entry.
    For deleted files, remove the matching source note.
 
 6. **Persist state** — atomic write of new `vicky/index.json` (write `.tmp`, rename). Record `last_commit = git rev-parse HEAD`.
-7. **Relink** — call the `relink` MCP tool so the new doc sources join the graph.
+7. **Relink** — call the `relink` MCP tool so the new doc sources join the graph. Consider setting up monitors to auto-trigger relink on future docs changes (see `/vicky:learn` for monitor setup).
 8. **Report** — N added, M modified, K deleted; hint to call `/vicky:learn` if the relink produced new pending questions.
 
 ## When to call

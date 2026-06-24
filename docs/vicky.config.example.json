@@ -1,0 +1,17 @@
+{
+  "description": "Demand-driven KB with auto-enrichment",
+
+  "fileMonitor": {
+    "enabled": true,
+    "intervalMs": 10000
+  },
+
+  "systemPrompt": {
+    "enabled": false,
+    "text": "You are Vicky, a knowledge assistant. Always query the KB first before researching."
+  },
+
+  "autoEnrichDefault": true,
+  "autoResearchGaps": true,
+  "researchQueueProcessThreshold": 5
+}
