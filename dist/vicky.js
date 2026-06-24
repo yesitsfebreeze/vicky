@@ -994,7 +994,6 @@ __export(monitor_exports, {
   default: () => monitor_default,
   runMonitor: () => runMonitor
 });
-import { execSync as execSync2 } from "child_process";
 import { join as join7 } from "path";
 async function runMonitor(updateInterval = 5e3) {
   console.clear();
@@ -23552,11 +23551,10 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { join as join12 } from "path";
-import { execSync as execSync3 } from "child_process";
+import { execSync as execSync2 } from "child_process";
 function git_mtime(path) {
   try {
-    const iso = execSync3(`git log -1 --format=%cI -- "${path}"`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    const iso = execSync2(`git log -1 --format=%cI -- "${path}"`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
     if (iso) return iso.split("T")[0];
   } catch {
   }
@@ -23729,7 +23727,7 @@ var init_learn = __esm({
 });
 
 // js/tools/enqueue.js
-import { join as join13 } from "path";
+import { join as join12 } from "path";
 function validate_frontmatter(fm) {
   const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
   if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
@@ -23765,7 +23763,7 @@ function register7(server2) {
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
     const slug = slugify(question);
-    const path = join13(pending(), `${slug}.md`);
+    const path = join12(pending(), `${slug}.md`);
     if (existsSync(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
     }
