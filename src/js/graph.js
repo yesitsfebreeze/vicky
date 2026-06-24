@@ -28,6 +28,10 @@ const sh_bg = (cmd, opts = {}) => {
 // job will never hang indefinitely on a stuck extraction.
 const EXTRACT_TIMEOUT_MS = Number(process.env.VICKY_EXTRACT_TIMEOUT_MS) || 180_000;
 
+// graphify semantic-chunk concurrency. Low by default to stay under LLM
+// free-tier rate limits; bump via VICKY_EXTRACT_CONCURRENCY on paid quota.
+const EXTRACT_CONCURRENCY_DEFAULT = 1;
+
 const sh_async = (cmd, opts = {}) => new Promise((res, rej) =>
 	exec(cmd, { timeout: 60_000, encoding: 'utf8', ...opts }, (err, stdout) => err ? rej(err) : res(stdout ?? ''))
 );
@@ -85,11 +89,15 @@ export const update_kb = async () => {
 
 	const model = detect_model(backend);
 	const modelArg = model ? ` --model "${model}"` : '';
+	// graphify defaults to concurrency 4, which bursts past LLM free-tier rate
+	// limits (e.g. Gemini free tier ~20 req/window) → 429s → backoff that looks
+	// like a hang. Throttle to a safe default; override with VICKY_EXTRACT_CONCURRENCY.
+	const concurrency = Math.max(1, Number(process.env.VICKY_EXTRACT_CONCURRENCY) || EXTRACT_CONCURRENCY_DEFAULT);
 	// Add token-budget to enable chunking for large corpuses (avoids LLM timeouts on >1M word corpuses).
 	// Bounded by EXTRACT_TIMEOUT_MS: if graphify stalls on the LLM call, we abort
 	// rather than hang the learn job, and fall back to the existing graph.
 	try {
-		await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root, timeoutMs: EXTRACT_TIMEOUT_MS });
+		await sh_bg(`graphify extract "${root}" --scope all --backend ${backend}${modelArg} --concurrency ${concurrency} --token-budget 20000`, { cwd: root, timeoutMs: EXTRACT_TIMEOUT_MS });
 	} catch (err) {
 		const reason = err.message?.startsWith('TIMEOUT') ? 'extract_timeout' : 'extract_failed';
 		console.error(`[vicky] graphify extract ${reason}: ${err.message}`);

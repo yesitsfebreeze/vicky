@@ -22997,7 +22997,7 @@ function build_snippet_map(graphPath) {
   }
   return map;
 }
-var sh_bg, EXTRACT_TIMEOUT_MS, sh_async, graphifyAvailable, FREE_MODELS, update_kb;
+var sh_bg, EXTRACT_TIMEOUT_MS, EXTRACT_CONCURRENCY_DEFAULT, sh_async, graphifyAvailable, FREE_MODELS, update_kb;
 var init_graph = __esm({
   "js/graph.js"() {
     init_fs_wrapper();
@@ -23027,6 +23027,7 @@ var init_graph = __esm({
       });
     };
     EXTRACT_TIMEOUT_MS = Number(process.env.VICKY_EXTRACT_TIMEOUT_MS) || 18e4;
+    EXTRACT_CONCURRENCY_DEFAULT = 1;
     sh_async = (cmd, opts = {}) => new Promise(
       (res, rej) => exec(cmd, { timeout: 6e4, encoding: "utf8", ...opts }, (err, stdout) => err ? rej(err) : res(stdout ?? ""))
     );
@@ -23054,8 +23055,9 @@ var init_graph = __esm({
       }
       const model = detect_model(backend);
       const modelArg = model ? ` --model "${model}"` : "";
+      const concurrency = Math.max(1, Number(process.env.VICKY_EXTRACT_CONCURRENCY) || EXTRACT_CONCURRENCY_DEFAULT);
       try {
-        await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root2, timeoutMs: EXTRACT_TIMEOUT_MS });
+        await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg} --concurrency ${concurrency} --token-budget 20000`, { cwd: root2, timeoutMs: EXTRACT_TIMEOUT_MS });
       } catch (err) {
         const reason = err.message?.startsWith("TIMEOUT") ? "extract_timeout" : "extract_failed";
         console.error(`[vicky] graphify extract ${reason}: ${err.message}`);
