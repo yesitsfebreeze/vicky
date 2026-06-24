@@ -22535,7 +22535,7 @@ var init_stdio2 = __esm({
 
 // js/graph.js
 import { exec, spawn } from "child_process";
-import { existsSync as existsSync5, readFileSync as readFileSync3, renameSync as renameSync2, cpSync } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync3, renameSync as renameSync2, cpSync, rmSync } from "fs";
 import { join as join6, resolve as resolve2, dirname as dirname3 } from "path";
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
@@ -22670,10 +22670,15 @@ var init_graph = __esm({
         return { ok: false, reason: "no_backend" };
       }
       const root2 = resolve2(root());
-<<<<<<< Updated upstream
       const kb_root = resolve2((void 0)());
       const extraction_graphify_dir = join6(root2, ".graphify");
       const kb_graphify_dir = graphify_out();
+      if (existsSync5(extraction_graphify_dir)) {
+        try {
+          rmSync(extraction_graphify_dir, { recursive: true, force: true });
+        } catch {
+        }
+      }
       const model = detect_model(backend);
       const modelArg = model ? ` --model "${model}"` : "";
       await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root2 });
@@ -22684,13 +22689,6 @@ var init_graph = __esm({
           console.warn(`[vicky] Failed to copy graphify results from ${extraction_graphify_dir} to ${kb_graphify_dir}: ${e.message}`);
         }
       }
-||||||| Stash base
-      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}`, { cwd: root2 });
-=======
-      const model = detect_model(backend);
-      const modelArg = model ? ` --model "${model}"` : "";
-      await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg}`, { cwd: root2 });
->>>>>>> Stashed changes
       const graph = kb_graph();
       if (!existsSync5(graph)) return { ok: false, reason: "no_graph_produced" };
       const wikiDir = graphs();
