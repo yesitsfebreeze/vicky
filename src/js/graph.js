@@ -82,11 +82,10 @@ export const update_kb = async () => {
 	const extraction_graphify_dir = join(root, '.graphify');
 	const kb_graphify_dir = fs.graphify_out();
 
-	// Clear stale graphify output to detect if extraction produces fresh results
-	if (existsSync(extraction_graphify_dir)) {
-		try { rmSync(extraction_graphify_dir, { recursive: true, force: true }); } catch (err) { console.warn('[vicky] Failed to clear stale graphify dir:', err.message); }
-	}
-
+	// NOTE: do NOT pre-wipe .graphify here. graphify extract overwrites graph.json
+	// on success, and if the extract fails (rate limit, timeout) we must KEEP the
+	// existing graph so learn/relink can degrade against it. Pre-wiping destroyed
+	// the graph before a failure, defeating graceful degradation.
 	const model = detect_model(backend);
 	const modelArg = model ? ` --model "${model}"` : '';
 	// graphify defaults to concurrency 4, which bursts past LLM free-tier rate

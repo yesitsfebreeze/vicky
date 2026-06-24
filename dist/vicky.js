@@ -23048,13 +23048,6 @@ var init_graph = __esm({
       const kb_root = resolve2(kb_base());
       const extraction_graphify_dir = join8(root2, ".graphify");
       const kb_graphify_dir = graphify_out();
-      if (existsSync(extraction_graphify_dir)) {
-        try {
-          rmSync(extraction_graphify_dir, { recursive: true, force: true });
-        } catch (err) {
-          console.warn("[vicky] Failed to clear stale graphify dir:", err.message);
-        }
-      }
       const model = detect_model(backend);
       const modelArg = model ? ` --model "${model}"` : "";
       const concurrency = Math.max(1, Number(process.env.VICKY_EXTRACT_CONCURRENCY) || EXTRACT_CONCURRENCY_DEFAULT);
