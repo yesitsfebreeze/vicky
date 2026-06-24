@@ -30,7 +30,7 @@ function parse_related(raw, selfName) {
 		.filter(t => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith('code:'));
 }
 
-export async function relink_dir(dir, graphPath, notify) {
+export async function relink_dir(dir, graphPath, notify = null) {
 	const files = list_md_files(dir);
 	let patched = 0;
 	for (let i = 0; i < files.length; i += BATCH) {

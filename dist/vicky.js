@@ -23369,7 +23369,7 @@ function parse_related(raw, selfName) {
   const self_slug = slugify(selfName);
   return [...(raw ?? "").matchAll(/^NODE\s+(.+?)\s+\[/gm)].map((m) => slugify(m[1])).filter((t) => t && t !== self_slug && !SECTION_NODES.has(t) && !t.startsWith("code:"));
 }
-async function relink_dir(dir, graphPath, notify2) {
+async function relink_dir(dir, graphPath, notify2 = null) {
   const files = list_md_files(dir);
   let patched = 0;
   for (let i = 0; i < files.length; i += BATCH) {
