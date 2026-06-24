@@ -743,12 +743,29 @@ var init_tag_context = __esm({
 var graph_importance_exports = {};
 __export(graph_importance_exports, {
   analyzeFileImportance: () => analyzeFileImportance,
+  coverageReport: () => coverageReport,
   default: () => graph_importance_default
 });
 import { execSync } from "child_process";
-import { existsSync as existsSync5, readFileSync as readFileSync3 } from "fs";
+import { existsSync as existsSync5, readFileSync as readFileSync3, readdirSync as readdirSync5 } from "fs";
 import { join as join6 } from "path";
-async function analyzeFileImportance(limit = 30) {
+function getIndexedFiles(sourcesDir) {
+  try {
+    const indexed = /* @__PURE__ */ new Set();
+    if (!existsSync5(sourcesDir)) return indexed;
+    const sourceFiles = readdirSync5(sourcesDir).filter((f) => f.endsWith(".md"));
+    for (const sf of sourceFiles) {
+      const path = join6(sourcesDir, sf);
+      const content = readFileSync3(path, "utf8");
+      const match = content.match(/^indexed_file:\s*(.+)$/m);
+      if (match) indexed.add(match[1].trim());
+    }
+    return indexed;
+  } catch {
+    return /* @__PURE__ */ new Set();
+  }
+}
+async function analyzeFileImportance(limit = 30, tier = 0, tiersSize = 100) {
   const astPath = join6(root(), ".graphify", ".graphify_ast.json");
   if (!existsSync5(astPath)) {
     return { ok: false, reason: "no_ast", message: "Run graphify extract first to generate AST" };
@@ -824,7 +841,16 @@ async function analyzeFileImportance(limit = 30) {
       language: info.language
     }));
     scored.sort((a, b) => b.total_score - a.total_score);
-    const top = scored.slice(0, limit);
+    const tierStart = tier * tiersSize;
+    const tierEnd = (tier + 1) * tiersSize;
+    const indexed = getIndexedFiles(sources());
+    let tiered = scored.filter((_, i) => i >= tierStart && i < tierEnd).filter((f) => !indexed.has(f.file));
+    if (tiered.length === 0) {
+      tiered = scored.filter((f) => !indexed.has(f.file)).slice(0, limit);
+    } else {
+      tiered = tiered.slice(0, limit);
+    }
+    const top = tiered.length > 0 ? tiered : scored.slice(0, limit);
     console.log(`
 [vicky] Top ${limit} most important files:
 `);
@@ -847,16 +873,70 @@ ${top.map((f, i) => `| ${i + 1} | \`${f.file}\` | ${f.total_score} | ${f.languag
 ## Indexing Priority
 
 Create vicky sources in this order for highest-value KB coverage.`;
+    const tiersCovered = [];
+    for (let t = 0; t < Math.ceil(scored.length / tiersSize); t++) {
+      const tierStart2 = t * tiersSize;
+      const tierEnd2 = Math.min((t + 1) * tiersSize, scored.length);
+      const tierFiles = scored.slice(tierStart2, tierEnd2);
+      const indexed_in_tier = tierFiles.filter((f) => indexed.has(f.file)).length;
+      tiersCovered.push({
+        tier: t,
+        total: tierFiles.length,
+        indexed: indexed_in_tier,
+        coverage: Math.round(indexed_in_tier / tierFiles.length * 100)
+      });
+    }
     return {
       ok: true,
       top_files: top.map((f) => f.file),
       scores: top,
       markdown,
-      total_analyzed: scored.length
+      total_analyzed: scored.length,
+      current_tier: tier,
+      tier_size: tiersSize,
+      tier_coverage: tiersCovered
     };
   } catch (e) {
     return { ok: false, reason: "parse_error", message: e.message };
   }
+}
+async function coverageReport(tiersSize = 100) {
+  const astPath = join6(root(), ".graphify", ".graphify_ast.json");
+  if (!existsSync5(astPath)) {
+    return { ok: false, reason: "no_ast", message: "Run graphify extract first" };
+  }
+  const ast = JSON.parse(readFileSync3(astPath, "utf8"));
+  const fileInfo = {};
+  if (ast.nodes) {
+    for (const node of ast.nodes) {
+      if (!node.file) continue;
+      if (!fileInfo[node.file]) {
+        fileInfo[node.file] = { file: node.file, count: 0 };
+      }
+      fileInfo[node.file].count++;
+    }
+  }
+  const scored = Object.values(fileInfo).map((f) => ({ ...f, score: f.count * 10 })).sort((a, b) => b.score - a.score);
+  const indexed = getIndexedFiles(sources());
+  const tiers = [];
+  for (let t = 0; t < Math.ceil(scored.length / tiersSize); t++) {
+    const tierStart = t * tiersSize;
+    const tierEnd = Math.min((t + 1) * tiersSize, scored.length);
+    const tierFiles = scored.slice(tierStart, tierEnd);
+    const indexed_in_tier = tierFiles.filter((f) => indexed.has(f.file)).length;
+    tiers.push({
+      tier: t,
+      total: tierFiles.length,
+      indexed: indexed_in_tier,
+      coverage: Math.round(indexed_in_tier / tierFiles.length * 100)
+    });
+  }
+  return {
+    ok: true,
+    tiers,
+    total_indexed: indexed.size,
+    total_files: scored.length
+  };
 }
 var graph_importance_default;
 var init_graph_importance = __esm({
@@ -23174,13 +23254,13 @@ var init_conclude = __esm({
 });
 
 // js/link.js
-import { existsSync as existsSync8, readFileSync as readFileSync6, readdirSync as readdirSync5 } from "fs";
+import { existsSync as existsSync8, readFileSync as readFileSync6, readdirSync as readdirSync6 } from "fs";
 import { join as join10 } from "path";
 function list_md_files(dir) {
   if (!existsSync8(dir)) return [];
   const files = [];
   function walk(d) {
-    for (const e of readdirSync5(d, { withFileTypes: true })) {
+    for (const e of readdirSync6(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
       const full = join10(d, e.name);
       if (e.isDirectory()) walk(full);
@@ -23280,10 +23360,10 @@ var init_jobs = __esm({
 });
 
 // js/tools/relink.js
-import { readdirSync as readdirSync6 } from "fs";
+import { readdirSync as readdirSync7 } from "fs";
 function est_relink_seconds() {
   try {
-    const n = readdirSync6(conclusions()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync7(conclusions()).filter((f) => f.endsWith(".md")).length;
     return Math.max(10, Math.min(600, Math.round(n * 0.3)));
   } catch {
     return 10;
@@ -23342,7 +23422,7 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { existsSync as existsSync9, readFileSync as readFileSync7, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync7 } from "fs";
+import { existsSync as existsSync9, readFileSync as readFileSync7, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync8 } from "fs";
 import { execSync as execSync2 } from "child_process";
 function git_mtime(path) {
   try {
@@ -23384,7 +23464,7 @@ ${additions.join("\n")}
 }
 function est_learn_seconds() {
   try {
-    const n = readdirSync7(pending()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync8(pending()).filter((f) => f.endsWith(".md")).length;
     return Math.max(5, Math.min(300, Math.round(n * 0.5)));
   } catch {
     return 5;
@@ -23946,15 +24026,23 @@ if (mode === "init") {
   process.exit(0);
 } else if (mode === "graph-importance") {
   try {
-    const limit = parseInt(process.argv[3]) || 30;
+    const tier = parseInt(process.argv[3]) || 0;
+    const limit = parseInt(process.argv[4]) || 30;
     const { analyzeFileImportance: analyzeFileImportance2 } = await Promise.resolve().then(() => (init_graph_importance(), graph_importance_exports));
-    const result = await analyzeFileImportance2(limit);
+    const result = await analyzeFileImportance2(limit, tier);
     if (result.ok) {
       console.log(`
 ${result.markdown}
 `);
       console.log(`
-Analyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
+[Tier ${result.current_tier}/${Math.ceil(result.total_analyzed / result.tier_size) - 1}] Analyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
+      if (result.tier_coverage.length > 0) {
+        console.log("\n\u{1F4CA} Coverage by tier:");
+        for (const t of result.tier_coverage) {
+          const bar = "\u2588".repeat(t.coverage / 5) + "\u2591".repeat(20 - t.coverage / 5);
+          console.log(`  Tier ${t.tier}: [${bar}] ${t.indexed}/${t.total} (${t.coverage}%)`);
+        }
+      }
     } else {
       console.error(`graph-importance: ${result.message}`);
       process.exit(1);
@@ -23963,9 +24051,35 @@ Analyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
     console.error(`graph-importance: ${e.message}`);
     process.exit(1);
   }
+} else if (mode === "coverage-report") {
+  try {
+    const { coverageReport: coverageReport2 } = await Promise.resolve().then(() => (init_graph_importance(), graph_importance_exports));
+    const result = await coverageReport2();
+    if (result.ok) {
+      console.log("\n\u{1F4C8} KB Coverage Report\n");
+      console.log(`Total files analyzed: ${result.total_files}`);
+      console.log(`Total files indexed: ${result.total_indexed}
+`);
+      console.log("Coverage by tier:");
+      for (const tier of result.tiers) {
+        const bar = "\u2588".repeat(Math.floor(tier.coverage / 5)) + "\u2591".repeat(20 - Math.floor(tier.coverage / 5));
+        console.log(`  Tier ${tier.tier}: [${bar}] ${tier.indexed}/${tier.total} (${tier.coverage}%)`);
+      }
+      const totalCoverage = Math.round(result.total_indexed / result.total_files * 100);
+      console.log(`
+Overall: ${totalCoverage}% complete
+`);
+    } else {
+      console.error(`coverage-report: ${result.message}`);
+      process.exit(1);
+    }
+  } catch (e) {
+    console.error(`coverage-report: ${e.message}`);
+    process.exit(1);
+  }
 } else if (mode === "mcp" || mode === void 0) {
   await init_mcp_server2().then(() => mcp_server_exports);
 } else {
-  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance`);
+  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance | coverage-report`);
   process.exit(2);
 }
