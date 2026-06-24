@@ -184,7 +184,12 @@ export async function query_graph_hits(question, prefix = null, graphPath = fs.k
 function build_inlink_map(graphPath) {
 	const map = new Map();
 	try {
-		const { nodes = [], edges = [] } = JSON.parse(readFileSync(graphPath, 'utf8'));
+		const parsed = JSON.parse(readFileSync(graphPath, 'utf8'));
+		const nodes = parsed.nodes ?? [];
+		// graphify writes the edge list under `links` (networkx node-link format);
+		// older/other formats use `edges`. Reading only `edges` left inlinks at 0,
+		// silently disabling inlink-weighted ranking.
+		const edges = parsed.links ?? parsed.edges ?? [];
 		const node_file = new Map();
 		for (const n of nodes) {
 			if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, '/'));

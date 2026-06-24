@@ -22965,7 +22965,9 @@ async function query_graph_hits(question, prefix = null, graphPath = kb_graph(),
 function build_inlink_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [], edges = [] } = JSON.parse(readFileSync(graphPath, "utf8"));
+    const parsed = JSON.parse(readFileSync(graphPath, "utf8"));
+    const nodes = parsed.nodes ?? [];
+    const edges = parsed.links ?? parsed.edges ?? [];
     const node_file = /* @__PURE__ */ new Map();
     for (const n of nodes) {
       if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, "/"));
