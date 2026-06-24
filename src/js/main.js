@@ -9,6 +9,7 @@
  *   node vicky.js dashboard --write  → write Dashboard.report.md, print path
  *   node vicky.js dashboard --json   → raw Dataview JSON
  *   node vicky.js tag-context    → UserPromptSubmit hook; reads {prompt} from stdin, prints matching conclusion notes
+ *   node vicky.js graph-importance [limit] → analyze file importance from AST, recommend sources to index
  */
 
 const mode = process.argv[2] || 'mcp';
@@ -60,9 +61,25 @@ if (mode === 'init') {
 		// swallow all errors — never block the prompt
 	}
 	process.exit(0);
+} else if (mode === 'graph-importance') {
+	try {
+		const limit = parseInt(process.argv[3]) || 30;
+		const { analyzeFileImportance } = await import('./graph-importance.js');
+		const result = await analyzeFileImportance(limit);
+		if (result.ok) {
+			console.log(`\n${result.markdown}\n`);
+			console.log(`\nAnalyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
+		} else {
+			console.error(`graph-importance: ${result.message}`);
+			process.exit(1);
+		}
+	} catch (e) {
+		console.error(`graph-importance: ${e.message}`);
+		process.exit(1);
+	}
 } else if (mode === 'mcp' || mode === undefined) {
 	await import('./mcp-server.js');
 } else {
-	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context`);
+	console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance`);
 	process.exit(2);
 }
