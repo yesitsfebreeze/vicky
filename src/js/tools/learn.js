@@ -141,16 +141,23 @@ export function register(server, notify) {
 				}
 				notify('info', 'vicky: relinking...');
 				try {
+					console.error('[vicky-learn] Checking fs object:', { fsType: typeof fs, fsKeys: Object.keys(fs || {}).slice(0, 5) });
+					console.error('[vicky-learn] kb_graph type:', typeof fs?.kb_graph);
+					console.error('[vicky-learn] relink_dir type:', typeof relink_dir);
+
 					const graph = fs.kb_graph();
 					const srcPath = fs.sources();
 					const conPath = fs.conclusions();
-					console.error('[vicky-debug] graph:', graph, 'srcPath:', srcPath, 'conPath:', conPath);
+					console.error('[vicky-learn] Paths obtained:', { graph, srcPath, conPath });
+
+					console.error('[vicky-learn] About to call relink_dir twice');
 					const [src, con] = await Promise.all([
 						relink_dir(srcPath, graph),
 						relink_dir(conPath, graph),
 					]);
-					console.error('[vicky-debug] relink complete:', src, con);
+					console.error('[vicky-learn] Relink complete:', { srcPatched: src?.patched, conPatched: con?.patched });
 				} catch (relinkErr) {
+					console.error('[vicky-learn] Relink error:', { message: relinkErr?.message, stack: relinkErr?.stack?.split('\n').slice(0, 5) });
 					notify('error', `vicky learn: relink failed: ${relinkErr.message}`);
 					throw relinkErr;
 				}

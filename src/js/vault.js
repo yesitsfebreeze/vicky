@@ -202,9 +202,22 @@ export function patch_frontmatter_sources(filePath, sources) {
 }
 
 export function patch_frontmatter_related(filePath, links) {
-	patch_fm_list(filePath, 'related', links, ll =>
-		`related:\n${ll.map(t => `  - "[[${slugify(t)}]]"`).join('\n')}`
-	);
+	console.error('[vicky-vault] patch_frontmatter_related called', { filePath, linksLen: links?.length, slugifyType: typeof slugify });
+	try {
+		patch_fm_list(filePath, 'related', links, ll => {
+			console.error('[vicky-vault] formatter called with', { llLen: ll?.length });
+			const result = `related:\n${ll.map(t => {
+				console.error('[vicky-vault] slugifying', { t, slugifyType: typeof slugify });
+				return `  - "[[${slugify(t)}]]"`;
+			}).join('\n')}`;
+			console.error('[vicky-vault] formatter returning', { resultLen: result.length });
+			return result;
+		});
+		console.error('[vicky-vault] patch_fm_list completed');
+	} catch (err) {
+		console.error('[vicky-vault] Error in patch_frontmatter_related:', err);
+		throw err;
+	}
 }
 
 
