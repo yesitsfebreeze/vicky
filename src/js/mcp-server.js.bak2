@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { readFileSync } from './fs-wrapper.js';
+import { readFileSync } from 'fs';
 
 import * as query       from './tools/query.js';
 import * as researchGap from './tools/research-gap.js';

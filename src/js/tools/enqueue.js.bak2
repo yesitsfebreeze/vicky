@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { existsSync } from '../fs-wrapper.js';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import * as fs from '../paths.js';
 import { enqueue_research, list_pending, slugify } from '../vault.js';

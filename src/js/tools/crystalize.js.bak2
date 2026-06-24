@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { readFileSync } from '../fs-wrapper.js';
+import { readFileSync } from 'fs';
 import { basename } from 'path';
 import * as fs from '../paths.js';
 import {

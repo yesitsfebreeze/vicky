@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from './fs-wrapper.js';
+import { existsSync, readFileSync, statSync } from 'fs';
 import * as fs from './paths.js';
 
 const DEFAULTS = {

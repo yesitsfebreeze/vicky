@@ -5,7 +5,7 @@
  * Checks for pending research and triggers processing
  */
 
-import { existsSync, readdirSync } from '../fs-wrapper.js';
+import { existsSync, readdirSync } from 'fs';
 import * as fs from '../paths.js';
 
 // Check if there are pending research items

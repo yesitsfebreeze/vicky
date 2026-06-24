@@ -23,7 +23,7 @@ if (mode === 'init') {
 } else if (mode === 'dashboard') {
 	const args = process.argv.slice(3);
 	const { build_dashboard } = await import('./dashboard.js');
-	const { mkdirSync, writeFileSync } = await import('fs');
+	const { mkdirSync, writeFileSync } = await import('./fs-wrapper.js');
 	const fs = await import('./paths.js');
 	try {
 		const { data, markdown } = build_dashboard();

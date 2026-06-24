@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from './fs-wrapper.js';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { patch_frontmatter_related } from './vault.js';
 import { query_graph } from './graph.js';

@@ -1,5 +1,5 @@
 import { exec, spawn } from 'child_process';
-import { existsSync, readFileSync, renameSync, cpSync, rmSync } from './fs-wrapper.js';
+import { existsSync, readFileSync, renameSync, cpSync, rmSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import * as fs from './paths.js';
 

@@ -1,4 +1,4 @@
-import { readdirSync } from '../fs-wrapper.js';
+import { readdirSync } from 'fs';
 import * as fs from '../paths.js';
 import { update_kb } from '../graph.js';
 import { relink_dir } from '../link.js';

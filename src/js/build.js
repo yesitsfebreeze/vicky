@@ -17,5 +17,6 @@ await build({
 	entryPoints: [join(SRC, 'main.js')],
 	outfile: join(DIST, 'vicky.js'),
 	banner: { js: 'import { createRequire as __vCR } from "module"; const require = __vCR(import.meta.url);' },
+	external: ['fs', 'path', 'child_process'],
 	logLevel: 'info',
 });

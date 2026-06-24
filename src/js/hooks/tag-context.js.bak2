@@ -3,7 +3,7 @@
  * and render a context block to inject into the answer.
  */
 
-import { existsSync, readdirSync, readFileSync } from '../fs-wrapper.js';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { parse_fm_list } from '../vault.js';
 import * as fs from '../paths.js';
