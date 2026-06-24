@@ -6,10 +6,16 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
-var __commonJS = (cb, mod) => function __require() {
+var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __export = (target, all) => {
@@ -943,6 +949,93 @@ var init_graph_importance = __esm({
   "js/graph-importance.js"() {
     init_fs();
     graph_importance_default = analyzeFileImportance;
+  }
+});
+
+// js/monitor.js
+var monitor_exports = {};
+__export(monitor_exports, {
+  default: () => monitor_default,
+  runMonitor: () => runMonitor
+});
+import { existsSync as existsSync6, readFileSync as readFileSync4, readdirSync as readdirSync6 } from "fs";
+import { join as join7 } from "path";
+async function runMonitor(updateInterval = 5e3) {
+  console.clear();
+  async function updateDisplay() {
+    console.clear();
+    console.log("\u{1F50D} Vicky KB Building Monitor\n");
+    console.log(`Workspace: ${root()}`);
+    console.log(`Updated: ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+`);
+    try {
+      const coverage = await coverageReport(50);
+      if (!coverage.ok) {
+        console.log("\u26A0\uFE0F  No AST available. Run graphify first:\n");
+        console.log("  node vicky graph-importance 0 30\n");
+        return;
+      }
+      console.log("\u{1F4CA} Tier Progress:\n");
+      let nextIncomplete = null;
+      for (const tier of coverage.tiers) {
+        const bar = "\u2588".repeat(Math.floor(tier.coverage / 5)) + "\u2591".repeat(20 - Math.floor(tier.coverage / 5));
+        const status = tier.coverage === 100 ? "\u2713" : tier.indexed > 0 ? "\u2299" : "\u25CB";
+        console.log(`  ${status} Tier ${tier.tier}: [${bar}] ${tier.indexed}/${tier.total} (${tier.coverage}%)`);
+        if (!nextIncomplete && tier.coverage < 100) {
+          nextIncomplete = tier.tier;
+        }
+      }
+      console.log();
+      const totalCoverage = Math.round(coverage.total_indexed / coverage.total_files * 100);
+      console.log(`\u{1F4C8} Overall: ${coverage.total_indexed}/${coverage.total_files} (${totalCoverage}%) indexed
+`);
+      if (nextIncomplete !== null) {
+        const tier = coverage.tiers[nextIncomplete];
+        const remaining = tier.total - tier.indexed;
+        console.log(`\u{1F4A1} Next: Index tier ${nextIncomplete} (${remaining} files remaining)`);
+        console.log(`   Run: vicky graph-importance ${nextIncomplete} 20
+`);
+      } else {
+        console.log("\u{1F389} All tiers indexed!\n");
+      }
+      try {
+        const sourceDir = sources();
+        if (existsSync6(sourceDir)) {
+          const files = readdirSync6(sourceDir).filter((f) => f.endsWith(".md")).map((f) => {
+            const stat = __require("fs").statSync(join7(sourceDir, f));
+            return { file: f, mtime: stat.mtime };
+          }).sort((a, b) => b.mtime - a.mtime).slice(0, 5);
+          if (files.length > 0) {
+            console.log("\u{1F4DD} Recently indexed:\n");
+            for (const f of files) {
+              const ago = Math.round((Date.now() - f.mtime.getTime()) / 1e3);
+              const timeStr = ago < 60 ? `${ago}s` : ago < 3600 ? `${Math.floor(ago / 60)}m` : `${Math.floor(ago / 3600)}h`;
+              console.log(`   \u2022 ${f.file.substring(0, 40)} (${timeStr} ago)`);
+            }
+            console.log();
+          }
+        }
+      } catch (e) {
+      }
+      console.log("Press Ctrl+C to stop monitoring.\n");
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+    }
+  }
+  await updateDisplay();
+  const interval = setInterval(updateDisplay, updateInterval);
+  process.on("SIGINT", () => {
+    clearInterval(interval);
+    console.log("\n\nMonitor stopped.\n");
+    process.exit(0);
+  });
+}
+var monitor_default;
+var init_monitor = __esm({
+  "js/monitor.js"() {
+    init_fs();
+    init_graph_importance();
+    monitor_default = runMonitor;
   }
 });
 
@@ -22742,8 +22835,8 @@ var init_stdio2 = __esm({
 
 // js/graph.js
 import { exec, spawn } from "child_process";
-import { existsSync as existsSync6, readFileSync as readFileSync4, renameSync as renameSync2, cpSync, rmSync } from "fs";
-import { join as join7, resolve as resolve2, dirname as dirname3 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync5, renameSync as renameSync2, cpSync, rmSync } from "fs";
+import { join as join8, resolve as resolve2, dirname as dirname3 } from "path";
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
   try {
@@ -22768,7 +22861,7 @@ function detect_model(backend) {
   return process.env.VICKY_MODEL?.trim() || FREE_MODELS[backend] || null;
 }
 async function query_graph(question, graph = kb_graph(), prefix = null) {
-  if (!existsSync6(graph)) return "";
+  if (!existsSync7(graph)) return "";
   if (!await checkGraphify()) return "";
   try {
     const out = await sh_async(`graphify query "${question}" --graph "${graph}"`);
@@ -22787,7 +22880,7 @@ function filter_nodes_by_prefix(raw, prefix) {
   }).join("\n");
 }
 async function query_graph_hits(question, prefix = null, graphPath = kb_graph(), limit = 10) {
-  if (!existsSync6(graphPath)) return [];
+  if (!existsSync7(graphPath)) return [];
   if (!await checkGraphify()) return [];
   let raw = "";
   try {
@@ -22823,7 +22916,7 @@ async function query_graph_hits(question, prefix = null, graphPath = kb_graph(),
 function build_inlink_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [], edges = [] } = JSON.parse(readFileSync4(graphPath, "utf8"));
+    const { nodes = [], edges = [] } = JSON.parse(readFileSync5(graphPath, "utf8"));
     const node_file = /* @__PURE__ */ new Map();
     for (const n of nodes) {
       if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, "/"));
@@ -22841,7 +22934,7 @@ function build_inlink_map(graphPath) {
 function build_snippet_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [] } = JSON.parse(readFileSync4(graphPath, "utf8"));
+    const { nodes = [] } = JSON.parse(readFileSync5(graphPath, "utf8"));
     for (const n of nodes) {
       if (!n.source_file) continue;
       const f = n.source_file.replace(/\\/g, "/");
@@ -22878,9 +22971,9 @@ var init_graph = __esm({
       }
       const root2 = resolve2(root());
       const kb_root = resolve2((void 0)());
-      const extraction_graphify_dir = join7(root2, ".graphify");
+      const extraction_graphify_dir = join8(root2, ".graphify");
       const kb_graphify_dir = graphify_out();
-      if (existsSync6(extraction_graphify_dir)) {
+      if (existsSync7(extraction_graphify_dir)) {
         try {
           rmSync(extraction_graphify_dir, { recursive: true, force: true });
         } catch {
@@ -22889,7 +22982,7 @@ var init_graph = __esm({
       const model = detect_model(backend);
       const modelArg = model ? ` --model "${model}"` : "";
       await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root2 });
-      if (extraction_graphify_dir !== kb_graphify_dir && existsSync6(extraction_graphify_dir)) {
+      if (extraction_graphify_dir !== kb_graphify_dir && existsSync7(extraction_graphify_dir)) {
         try {
           cpSync(extraction_graphify_dir, kb_graphify_dir, { recursive: true, force: true });
         } catch (e) {
@@ -22897,11 +22990,11 @@ var init_graph = __esm({
         }
       }
       const graph = kb_graph();
-      if (!existsSync6(graph)) return { ok: false, reason: "no_graph_produced" };
+      if (!existsSync7(graph)) return { ok: false, reason: "no_graph_produced" };
       const wikiDir = graphs();
       await sh_bg(`graphify export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root2 });
-      const idx = join7(wikiDir, "index.md");
-      if (existsSync6(idx)) {
+      const idx = join8(wikiDir, "index.md");
+      if (existsSync7(idx)) {
         try {
           renameSync2(idx, kb_wiki());
         } catch {
@@ -22913,7 +23006,7 @@ var init_graph = __esm({
 });
 
 // js/workflow.js
-import { existsSync as existsSync7, readFileSync as readFileSync5, statSync } from "fs";
+import { existsSync as existsSync8, readFileSync as readFileSync6, statSync } from "fs";
 function parse_frontmatter(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
@@ -22987,13 +23080,13 @@ function parse_section(text, name) {
 }
 function load_workflow() {
   const path = workflow_md();
-  if (!existsSync7(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
+  if (!existsSync8(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
   try {
     const { mtimeMs } = statSync(path);
     if (cache && mtimeMs === cache_mtime) return cache;
   } catch {
   }
-  const text = readFileSync5(path, "utf8");
+  const text = readFileSync6(path, "utf8");
   const fm = parse_frontmatter(text);
   const merged = { ...DEFAULTS, ...fm };
   const wf = {
@@ -23189,7 +23282,7 @@ var init_research_gap = __esm({
 });
 
 // js/tools/remember.js
-import { join as join8, basename as basename3 } from "path";
+import { join as join9, basename as basename3 } from "path";
 function register3(server2) {
   server2.registerTool("remember", {
     description: "Save key points or findings into the source vault. Conclusions are not auto-spawned \u2014 call `conclude` once you have a synthesised takeaway.",
@@ -23206,7 +23299,7 @@ function register3(server2) {
     if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
       return { content: [{ type: "text", text: "remember writes to vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
     }
-    const dir = folder ? join8(sources(), folder) : sources();
+    const dir = folder ? join9(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related, id_filename: true });
     const slug = basename3(path).replace(/\.md$/, "");
@@ -23224,7 +23317,7 @@ var init_remember = __esm({
 });
 
 // js/tools/conclude.js
-import { join as join9 } from "path";
+import { join as join10 } from "path";
 function register4(server2) {
   server2.registerTool("conclude", {
     description: "Save a derived conclusion into vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
@@ -23238,7 +23331,7 @@ function register4(server2) {
     }
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
-    const dir = folder ? join9(conclusions(), folder) : conclusions();
+    const dir = folder ? join10(conclusions(), folder) : conclusions();
     const merged = Array.from(/* @__PURE__ */ new Set(["conclusion", ...tags.filter((t) => t !== "research" && t !== "pending")]));
     const path = save_note(title, content, { dir, tags: merged, type: "conclusion", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
@@ -23254,15 +23347,15 @@ var init_conclude = __esm({
 });
 
 // js/link.js
-import { existsSync as existsSync8, readFileSync as readFileSync6, readdirSync as readdirSync6 } from "fs";
-import { join as join10 } from "path";
+import { existsSync as existsSync9, readFileSync as readFileSync7, readdirSync as readdirSync7 } from "fs";
+import { join as join11 } from "path";
 function list_md_files(dir) {
-  if (!existsSync8(dir)) return [];
+  if (!existsSync9(dir)) return [];
   const files = [];
   function walk(d) {
-    for (const e of readdirSync6(d, { withFileTypes: true })) {
+    for (const e of readdirSync7(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join10(d, e.name);
+      const full = join11(d, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.name.endsWith(".md")) files.push({ full, name: e.name });
     }
@@ -23360,10 +23453,10 @@ var init_jobs = __esm({
 });
 
 // js/tools/relink.js
-import { readdirSync as readdirSync7 } from "fs";
+import { readdirSync as readdirSync8 } from "fs";
 function est_relink_seconds() {
   try {
-    const n = readdirSync7(conclusions()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync8(conclusions()).filter((f) => f.endsWith(".md")).length;
     return Math.max(10, Math.min(600, Math.round(n * 0.3)));
   } catch {
     return 10;
@@ -23422,7 +23515,7 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { existsSync as existsSync9, readFileSync as readFileSync7, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync8 } from "fs";
+import { existsSync as existsSync10, readFileSync as readFileSync8, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync9 } from "fs";
 import { execSync as execSync2 } from "child_process";
 function git_mtime(path) {
   try {
@@ -23437,8 +23530,8 @@ function git_mtime(path) {
   }
 }
 function autofill_frontmatter(path) {
-  if (!existsSync9(path)) return false;
-  let text = readFileSync7(path, "utf8");
+  if (!existsSync10(path)) return false;
+  let text = readFileSync8(path, "utf8");
   const fm_match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   let body_block = fm_match ? fm_match[1] : "";
   const has = (key) => new RegExp(`^${key}:`, "m").test(body_block);
@@ -23464,7 +23557,7 @@ ${additions.join("\n")}
 }
 function est_learn_seconds() {
   try {
-    const n = readdirSync8(pending()).filter((f) => f.endsWith(".md")).length;
+    const n = readdirSync9(pending()).filter((f) => f.endsWith(".md")).length;
     return Math.max(5, Math.min(300, Math.round(n * 0.5)));
   } catch {
     return 5;
@@ -23585,8 +23678,8 @@ var init_learn = __esm({
 });
 
 // js/tools/enqueue.js
-import { existsSync as existsSync10 } from "fs";
-import { join as join11 } from "path";
+import { existsSync as existsSync11 } from "fs";
+import { join as join12 } from "path";
 function validate_frontmatter(fm) {
   const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
   if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
@@ -23622,8 +23715,8 @@ function register7(server2) {
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
     const slug = slugify(question);
-    const path = join11(pending(), `${slug}.md`);
-    if (existsSync10(path)) {
+    const path = join12(pending(), `${slug}.md`);
+    if (existsSync11(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
     }
     const out = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
@@ -23841,7 +23934,7 @@ var init_job_status = __esm({
 });
 
 // js/tools/crystalize.js
-import { readFileSync as readFileSync8 } from "fs";
+import { readFileSync as readFileSync9 } from "fs";
 import { basename as basename5 } from "path";
 function find_conclusion(name) {
   return resolve_slug(name, conclusions());
@@ -23860,7 +23953,7 @@ function register12(server2) {
     if (!concPath) {
       return { content: [{ type: "text", text: `Error: conclusion not found: ${conclusion}` }] };
     }
-    const concContent = readFileSync8(concPath, "utf8");
+    const concContent = readFileSync9(concPath, "utf8");
     const existing_sources = parse_fm_list(concContent, "sources");
     const existing_derived = parse_fm_list(concContent, "derived_from");
     const moves = [];
@@ -23917,7 +24010,7 @@ var mcp_server_exports = {};
 __export(mcp_server_exports, {
   config: () => config2
 });
-import { readFileSync as readFileSync9 } from "fs";
+import { readFileSync as readFileSync10 } from "fs";
 var config2, server, notify, transport;
 var init_mcp_server2 = __esm({
   async "js/mcp-server.js"() {
@@ -23942,7 +24035,7 @@ var init_mcp_server2 = __esm({
     };
     try {
       const configPath = "./vicky.config.json";
-      const configText = readFileSync9(configPath, "utf8");
+      const configText = readFileSync10(configPath, "utf8");
       config2 = { ...config2, ...JSON.parse(configText) };
     } catch (_) {
     }
@@ -24077,9 +24170,18 @@ Overall: ${totalCoverage}% complete
     console.error(`coverage-report: ${e.message}`);
     process.exit(1);
   }
+} else if (mode === "monitor") {
+  try {
+    const interval = parseInt(process.argv[3]) || 5e3;
+    const { runMonitor: runMonitor2 } = await Promise.resolve().then(() => (init_monitor(), monitor_exports));
+    await runMonitor2(interval);
+  } catch (e) {
+    console.error(`monitor: ${e.message}`);
+    process.exit(1);
+  }
 } else if (mode === "mcp" || mode === void 0) {
   await init_mcp_server2().then(() => mcp_server_exports);
 } else {
-  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance | coverage-report`);
+  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance | coverage-report | monitor`);
   process.exit(2);
 }
