@@ -739,6 +739,117 @@ var init_tag_context = __esm({
   }
 });
 
+// js/graph-importance.js
+var graph_importance_exports = {};
+__export(graph_importance_exports, {
+  analyzeFileImportance: () => analyzeFileImportance,
+  default: () => graph_importance_default
+});
+import { execSync } from "child_process";
+import { existsSync as existsSync5, readFileSync as readFileSync3 } from "fs";
+import { join as join6 } from "path";
+async function analyzeFileImportance(limit = 30) {
+  const astPath = join6(root(), ".graphify", ".graphify_ast.json");
+  if (!existsSync5(astPath)) {
+    return { ok: false, reason: "no_ast", message: "Run graphify extract first to generate AST" };
+  }
+  console.log("[vicky] Analyzing file importance from AST...");
+  try {
+    const ast = JSON.parse(readFileSync3(astPath, "utf8"));
+    const fileReferences = {};
+    const fileInfo = {};
+    if (ast.nodes) {
+      for (const node of ast.nodes) {
+        if (!node.file) continue;
+        fileReferences[node.file] = (fileReferences[node.file] || 0) + 1;
+        if (!fileInfo[node.file]) {
+          fileInfo[node.file] = {
+            file: node.file,
+            ast_nodes: 0,
+            references: 0,
+            type: node.type,
+            language: node.language
+          };
+        }
+        fileInfo[node.file].ast_nodes++;
+        if (node.edges) {
+          for (const edge of node.edges) {
+            if (edge.target_file && edge.target_file !== node.file) {
+              fileInfo[node.file].references = (fileInfo[node.file].references || 0) + 1;
+            }
+          }
+        }
+      }
+    }
+    console.log("[vicky] Grep analysis for file references...");
+    const grepCounts = {};
+    try {
+      const root2 = root();
+      const pattern = Object.keys(fileInfo).slice(0, 50).map((f) => f.split("/").pop()).join("\\|");
+      if (pattern) {
+        const cmd = `grep -r "${pattern}" "${root2}" --include="*.ts" --include="*.tsx" --include="*.vue" --include="*.php" --include="*.js" 2>/dev/null | cut -d: -f1 | sort | uniq -c | sort -rn`;
+        const output = execSync(cmd, { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+        for (const line of output.split("\n")) {
+          const match = line.trim().match(/^(\d+)\s+(.+)$/);
+          if (match) {
+            grepCounts[match[2]] = parseInt(match[1]);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[vicky] Grep analysis failed, using AST data only");
+    }
+    const scored = Object.entries(fileInfo).map(([file, info]) => ({
+      file,
+      ast_score: info.ast_nodes * 10,
+      grep_score: grepCounts[file] || 0,
+      reference_score: info.references * 5,
+      total_score: info.ast_nodes * 10 + (grepCounts[file] || 0) + info.references * 5,
+      language: info.language
+    }));
+    scored.sort((a, b) => b.total_score - a.total_score);
+    const top = scored.slice(0, limit);
+    console.log(`
+[vicky] Top ${limit} most important files:
+`);
+    for (let i = 0; i < top.length; i++) {
+      const f = top[i];
+      console.log(`${i + 1}. ${f.file}`);
+      console.log(`   Score: ${f.total_score} (AST: ${f.ast_score}, Grep: ${f.grep_score}, Refs: ${f.reference_score})`);
+      console.log(`   Language: ${f.language}`);
+    }
+    const markdown = `# File Importance Analysis
+
+Generated from AST + grep frequency analysis.
+
+## Top ${limit} Files by Importance Score
+
+| Rank | File | Score | Language | Notes |
+|------|------|-------|----------|-------|
+${top.map((f, i) => `| ${i + 1} | \`${f.file}\` | ${f.total_score} | ${f.language} | AST: ${f.ast_score}, Grep: ${f.grep_score}, Refs: ${f.reference_score} |`).join("\n")}
+
+## Indexing Priority
+
+Create vicky sources in this order for highest-value KB coverage.`;
+    return {
+      ok: true,
+      top_files: top.map((f) => f.file),
+      scores: top,
+      markdown,
+      total_analyzed: scored.length
+    };
+  } catch (e) {
+    return { ok: false, reason: "parse_error", message: e.message };
+  }
+}
+var graph_importance_default;
+var init_graph_importance = __esm({
+  "js/graph-importance.js"() {
+    init_fs();
+    graph_importance_default = analyzeFileImportance;
+  }
+});
+
 // node_modules/zod/v3/helpers/util.js
 var util, objectUtil, ZodParsedType, getParsedType;
 var init_util = __esm({
@@ -22535,8 +22646,8 @@ var init_stdio2 = __esm({
 
 // js/graph.js
 import { exec, spawn } from "child_process";
-import { existsSync as existsSync5, readFileSync as readFileSync3, renameSync as renameSync2, cpSync, rmSync } from "fs";
-import { join as join6, resolve as resolve2, dirname as dirname3 } from "path";
+import { existsSync as existsSync6, readFileSync as readFileSync4, renameSync as renameSync2, cpSync, rmSync } from "fs";
+import { join as join7, resolve as resolve2, dirname as dirname3 } from "path";
 async function checkGraphify() {
   if (graphifyAvailable !== null) return graphifyAvailable;
   try {
@@ -22561,7 +22672,7 @@ function detect_model(backend) {
   return process.env.VICKY_MODEL?.trim() || FREE_MODELS[backend] || null;
 }
 async function query_graph(question, graph = kb_graph(), prefix = null) {
-  if (!existsSync5(graph)) return "";
+  if (!existsSync6(graph)) return "";
   if (!await checkGraphify()) return "";
   try {
     const out = await sh_async(`graphify query "${question}" --graph "${graph}"`);
@@ -22580,7 +22691,7 @@ function filter_nodes_by_prefix(raw, prefix) {
   }).join("\n");
 }
 async function query_graph_hits(question, prefix = null, graphPath = kb_graph(), limit = 10) {
-  if (!existsSync5(graphPath)) return [];
+  if (!existsSync6(graphPath)) return [];
   if (!await checkGraphify()) return [];
   let raw = "";
   try {
@@ -22616,7 +22727,7 @@ async function query_graph_hits(question, prefix = null, graphPath = kb_graph(),
 function build_inlink_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [], edges = [] } = JSON.parse(readFileSync3(graphPath, "utf8"));
+    const { nodes = [], edges = [] } = JSON.parse(readFileSync4(graphPath, "utf8"));
     const node_file = /* @__PURE__ */ new Map();
     for (const n of nodes) {
       if (n.source_file) node_file.set(n.id ?? n.node_id ?? n.name, n.source_file.replace(/\\/g, "/"));
@@ -22634,7 +22745,7 @@ function build_inlink_map(graphPath) {
 function build_snippet_map(graphPath) {
   const map = /* @__PURE__ */ new Map();
   try {
-    const { nodes = [] } = JSON.parse(readFileSync3(graphPath, "utf8"));
+    const { nodes = [] } = JSON.parse(readFileSync4(graphPath, "utf8"));
     for (const n of nodes) {
       if (!n.source_file) continue;
       const f = n.source_file.replace(/\\/g, "/");
@@ -22671,9 +22782,9 @@ var init_graph = __esm({
       }
       const root2 = resolve2(root());
       const kb_root = resolve2((void 0)());
-      const extraction_graphify_dir = join6(root2, ".graphify");
+      const extraction_graphify_dir = join7(root2, ".graphify");
       const kb_graphify_dir = graphify_out();
-      if (existsSync5(extraction_graphify_dir)) {
+      if (existsSync6(extraction_graphify_dir)) {
         try {
           rmSync(extraction_graphify_dir, { recursive: true, force: true });
         } catch {
@@ -22682,7 +22793,7 @@ var init_graph = __esm({
       const model = detect_model(backend);
       const modelArg = model ? ` --model "${model}"` : "";
       await sh_bg(`graphify extract "${root2}" --scope all --backend ${backend}${modelArg} --token-budget 20000`, { cwd: root2 });
-      if (extraction_graphify_dir !== kb_graphify_dir && existsSync5(extraction_graphify_dir)) {
+      if (extraction_graphify_dir !== kb_graphify_dir && existsSync6(extraction_graphify_dir)) {
         try {
           cpSync(extraction_graphify_dir, kb_graphify_dir, { recursive: true, force: true });
         } catch (e) {
@@ -22690,11 +22801,11 @@ var init_graph = __esm({
         }
       }
       const graph = kb_graph();
-      if (!existsSync5(graph)) return { ok: false, reason: "no_graph_produced" };
+      if (!existsSync6(graph)) return { ok: false, reason: "no_graph_produced" };
       const wikiDir = graphs();
       await sh_bg(`graphify export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root2 });
-      const idx = join6(wikiDir, "index.md");
-      if (existsSync5(idx)) {
+      const idx = join7(wikiDir, "index.md");
+      if (existsSync6(idx)) {
         try {
           renameSync2(idx, kb_wiki());
         } catch {
@@ -22706,7 +22817,7 @@ var init_graph = __esm({
 });
 
 // js/workflow.js
-import { existsSync as existsSync6, readFileSync as readFileSync4, statSync } from "fs";
+import { existsSync as existsSync7, readFileSync as readFileSync5, statSync } from "fs";
 function parse_frontmatter(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
@@ -22780,13 +22891,13 @@ function parse_section(text, name) {
 }
 function load_workflow() {
   const path = workflow_md();
-  if (!existsSync6(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
+  if (!existsSync7(path)) return { ...DEFAULTS, routing: [], rules: [], focus: [] };
   try {
     const { mtimeMs } = statSync(path);
     if (cache && mtimeMs === cache_mtime) return cache;
   } catch {
   }
-  const text = readFileSync4(path, "utf8");
+  const text = readFileSync5(path, "utf8");
   const fm = parse_frontmatter(text);
   const merged = { ...DEFAULTS, ...fm };
   const wf = {
@@ -22982,7 +23093,7 @@ var init_research_gap = __esm({
 });
 
 // js/tools/remember.js
-import { join as join7, basename as basename3 } from "path";
+import { join as join8, basename as basename3 } from "path";
 function register3(server2) {
   server2.registerTool("remember", {
     description: "Save key points or findings into the source vault. Conclusions are not auto-spawned \u2014 call `conclude` once you have a synthesised takeaway.",
@@ -22999,7 +23110,7 @@ function register3(server2) {
     if (folder && /^(conclusion|conclusions)$/i.test(folder.trim())) {
       return { content: [{ type: "text", text: "remember writes to vicky/sources/ only. To save a derived conclusion, call `conclude` instead." }], isError: true };
     }
-    const dir = folder ? join7(sources(), folder) : sources();
+    const dir = folder ? join8(sources(), folder) : sources();
     const merged = Array.from(/* @__PURE__ */ new Set(["source", ...tags.filter((t) => t !== "research")]));
     const path = save_note(title, content, { dir, tags: merged, type: "source", sources: sources2, related, id_filename: true });
     const slug = basename3(path).replace(/\.md$/, "");
@@ -23017,7 +23128,7 @@ var init_remember = __esm({
 });
 
 // js/tools/conclude.js
-import { join as join8 } from "path";
+import { join as join9 } from "path";
 function register4(server2) {
   server2.registerTool("conclude", {
     description: "Save a derived conclusion into vicky/conclusions/. Use after a research pass when you have a synthesized takeaway backed by one or more sources. The sources arg is written as [[wikilinks]] in both frontmatter and the body so the conclusion is graph-connected to its evidence.",
@@ -23031,7 +23142,7 @@ function register4(server2) {
     }
   }, async ({ title, content, folder, tags = [], sources: sources2 = [], related = [] }) => {
     await ensure_init();
-    const dir = folder ? join8(conclusions(), folder) : conclusions();
+    const dir = folder ? join9(conclusions(), folder) : conclusions();
     const merged = Array.from(/* @__PURE__ */ new Set(["conclusion", ...tags.filter((t) => t !== "research" && t !== "pending")]));
     const path = save_note(title, content, { dir, tags: merged, type: "conclusion", sources: sources2, related });
     return { content: [{ type: "text", text: `Saved: ${path}` }] };
@@ -23047,15 +23158,15 @@ var init_conclude = __esm({
 });
 
 // js/link.js
-import { existsSync as existsSync7, readFileSync as readFileSync5, readdirSync as readdirSync5 } from "fs";
-import { join as join9 } from "path";
+import { existsSync as existsSync8, readFileSync as readFileSync6, readdirSync as readdirSync5 } from "fs";
+import { join as join10 } from "path";
 function list_md_files(dir) {
-  if (!existsSync7(dir)) return [];
+  if (!existsSync8(dir)) return [];
   const files = [];
   function walk(d) {
     for (const e of readdirSync5(d, { withFileTypes: true })) {
       if (e.name.startsWith(".") || e.name.startsWith("_")) continue;
-      const full = join9(d, e.name);
+      const full = join10(d, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.name.endsWith(".md")) files.push({ full, name: e.name });
     }
@@ -23215,11 +23326,11 @@ var init_relink = __esm({
 });
 
 // js/tools/learn.js
-import { existsSync as existsSync8, readFileSync as readFileSync6, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync7 } from "fs";
-import { execSync } from "child_process";
+import { existsSync as existsSync9, readFileSync as readFileSync7, writeFileSync as writeFileSync3, statSync as statSync2, readdirSync as readdirSync7 } from "fs";
+import { execSync as execSync2 } from "child_process";
 function git_mtime(path) {
   try {
-    const iso = execSync(`git log -1 --format=%cI -- "${path}"`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    const iso = execSync2(`git log -1 --format=%cI -- "${path}"`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
     if (iso) return iso.split("T")[0];
   } catch {
   }
@@ -23230,8 +23341,8 @@ function git_mtime(path) {
   }
 }
 function autofill_frontmatter(path) {
-  if (!existsSync8(path)) return false;
-  let text = readFileSync6(path, "utf8");
+  if (!existsSync9(path)) return false;
+  let text = readFileSync7(path, "utf8");
   const fm_match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   let body_block = fm_match ? fm_match[1] : "";
   const has = (key) => new RegExp(`^${key}:`, "m").test(body_block);
@@ -23366,8 +23477,8 @@ var init_learn = __esm({
 });
 
 // js/tools/enqueue.js
-import { existsSync as existsSync9 } from "fs";
-import { join as join10 } from "path";
+import { existsSync as existsSync10 } from "fs";
+import { join as join11 } from "path";
 function validate_frontmatter(fm) {
   const missing = ["type", "date", "tags"].filter((k) => fm[k] === void 0 || fm[k] === null);
   if (missing.length) return `Missing required frontmatter fields after defaults: ${missing.join(", ")}`;
@@ -23403,8 +23514,8 @@ function register7(server2) {
     const err = validate_frontmatter(fm);
     if (err) return { content: [{ type: "text", text: `Error: ${err}` }], isError: true };
     const slug = slugify(question);
-    const path = join10(pending(), `${slug}.md`);
-    if (existsSync9(path)) {
+    const path = join11(pending(), `${slug}.md`);
+    if (existsSync10(path)) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "duplicate", path }) }] };
     }
     const out = enqueue_research(question, { context, requested_by, priority, sources: sources2 });
@@ -23622,7 +23733,7 @@ var init_job_status = __esm({
 });
 
 // js/tools/crystalize.js
-import { readFileSync as readFileSync7 } from "fs";
+import { readFileSync as readFileSync8 } from "fs";
 import { basename as basename5 } from "path";
 function find_conclusion(name) {
   return resolve_slug(name, conclusions());
@@ -23641,7 +23752,7 @@ function register12(server2) {
     if (!concPath) {
       return { content: [{ type: "text", text: `Error: conclusion not found: ${conclusion}` }] };
     }
-    const concContent = readFileSync7(concPath, "utf8");
+    const concContent = readFileSync8(concPath, "utf8");
     const existing_sources = parse_fm_list(concContent, "sources");
     const existing_derived = parse_fm_list(concContent, "derived_from");
     const moves = [];
@@ -23698,7 +23809,7 @@ var mcp_server_exports = {};
 __export(mcp_server_exports, {
   config: () => config2
 });
-import { readFileSync as readFileSync8 } from "fs";
+import { readFileSync as readFileSync9 } from "fs";
 var config2, server, notify, transport;
 var init_mcp_server2 = __esm({
   async "js/mcp-server.js"() {
@@ -23723,7 +23834,7 @@ var init_mcp_server2 = __esm({
     };
     try {
       const configPath = "./vicky.config.json";
-      const configText = readFileSync8(configPath, "utf8");
+      const configText = readFileSync9(configPath, "utf8");
       config2 = { ...config2, ...JSON.parse(configText) };
     } catch (_) {
     }
@@ -23805,9 +23916,28 @@ if (mode === "init") {
   } catch (_) {
   }
   process.exit(0);
+} else if (mode === "graph-importance") {
+  try {
+    const limit = parseInt(process.argv[3]) || 30;
+    const { analyzeFileImportance: analyzeFileImportance2 } = await Promise.resolve().then(() => (init_graph_importance(), graph_importance_exports));
+    const result = await analyzeFileImportance2(limit);
+    if (result.ok) {
+      console.log(`
+${result.markdown}
+`);
+      console.log(`
+Analyzed ${result.total_analyzed} files. Priority order in vicky sources.`);
+    } else {
+      console.error(`graph-importance: ${result.message}`);
+      process.exit(1);
+    }
+  } catch (e) {
+    console.error(`graph-importance: ${e.message}`);
+    process.exit(1);
+  }
 } else if (mode === "mcp" || mode === void 0) {
   await init_mcp_server2().then(() => mcp_server_exports);
 } else {
-  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context`);
+  console.error(`vicky: unknown mode "${mode}". Valid: mcp | init | dashboard | tag-context | graph-importance`);
   process.exit(2);
 }
