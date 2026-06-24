@@ -21,9 +21,9 @@ async function checkGraphify() {
 		const cmd = process.platform === 'win32' ? 'where graphify' : 'which graphify';
 		await sh_async(cmd);
 		graphifyAvailable = true;
-	} catch (_) {
+	} catch (err) {
 		graphifyAvailable = false;
-		console.error('[vicky] graphify not found on PATH. Install: `npm i -g graphifyy`');
+		console.error('[vicky] graphify not found on PATH. Install: `npm i -g graphifyy`. Details: ' + err.message);
 	}
 	return graphifyAvailable;
 }
@@ -61,7 +61,7 @@ export const update_kb = async () => {
 
 	// Clear stale graphify output to detect if extraction produces fresh results
 	if (existsSync(extraction_graphify_dir)) {
-		try { rmSync(extraction_graphify_dir, { recursive: true, force: true }); } catch { /* ignore */ }
+		try { rmSync(extraction_graphify_dir, { recursive: true, force: true }); } catch (err) { console.warn('[vicky] Failed to clear stale graphify dir:', err.message); }
 	}
 
 	const model = detect_model(backend);
@@ -84,7 +84,7 @@ export const update_kb = async () => {
 	await sh_bg(`graphify export wiki --graph "${graph}" --dir "${wikiDir}"`, { cwd: root });
 	const idx = join(wikiDir, 'index.md');
 	if (existsSync(idx)) {
-		try { renameSync(idx, fs.kb_wiki()); } catch { /* ignore */ }
+		try { renameSync(idx, fs.kb_wiki()); } catch (err) { console.warn('[vicky] Failed to rename graph index:', err.message); }
 	}
 	return { ok: true, backend };
 };
@@ -96,7 +96,10 @@ export async function query_graph(question, graph = fs.kb_graph(), prefix = null
 		const out = await sh_async(`graphify query "${question}" --graph "${graph}"`);
 		if (!prefix) return out;
 		return filter_nodes_by_prefix(out, prefix);
-	} catch (_) { return ''; }
+	} catch (err) {
+		console.error('[vicky-graph] query_graph error:', err.message);
+		return '';
+	}
 }
 
 function filter_nodes_by_prefix(raw, prefix) {
@@ -153,7 +156,7 @@ function build_inlink_map(graphPath) {
 			if (!f) continue;
 			map.set(f, (map.get(f) || 0) + 1);
 		}
-	} catch (_) { /* ignore */ }
+	} catch (err) { console.error("[vicky-graph] Error in catch block:", err.message); }
 	return map;
 }
 
@@ -168,7 +171,7 @@ function build_snippet_map(graphPath) {
 			const text = n.source_text || n.text || n.name || '';
 			if (text) map.set(f, String(text).replace(/\s+/g, ' ').trim());
 		}
-	} catch (_) { /* ignore */ }
+	} catch (err) { console.error("[vicky-graph] Error in catch block:", err.message); }
 	return map;
 }
 
