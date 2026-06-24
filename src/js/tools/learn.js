@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync, statSync, readdirSync } from '
 import { execSync } from 'child_process';
 import * as fs from '../fs.js';
 import { query_graph, update_kb } from '../graph.js';
+import { analyzeFileImportance } from '../graph-importance.js';
 import { relink_dir } from '../link.js';
 import { save_note, list_pending, read_pending, delete_pending } from '../vault.js';
 import { ensure_init } from '../init.js';
@@ -49,7 +50,7 @@ function est_learn_seconds() {
 
 export function register(server, notify) {
 	server.registerTool('learn', {
-		description: 'Walk the KB: drain pending queue → promote to sources → relink. No external fetches and no stub conclusions — synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
+		description: 'Walk the KB with file-graph-first architecture: (1) analyze file importance from AST + git history + grep frequency → identify key files to index; (2) drain pending queue → promote to sources → relink semantic graph. No external fetches and no stub conclusions — synthesis lands in conclusions/ only via `conclude` once real takeaways exist. /vicky:research fetches new data and calls this tool afterwards to absorb it.',
 		inputSchema: {
 			count: z.number().optional().describe('Max pending notes to drain (default: 20)'),
 		},
@@ -66,6 +67,20 @@ export function register(server, notify) {
 
 		(async () => {
 			try {
+				// Phase 1: Analyze file importance (AST + git + grep)
+				jobs.update(job_id, { progress: { phase: 'analyze' } });
+				notify('info', 'vicky: analyzing file importance (AST + git history)...');
+				let importance = null;
+				try {
+					importance = await analyzeFileImportance(50);
+					if (importance.ok) {
+						notify('info', `vicky: identified ${importance.top_files.length} key files for indexing.`);
+					}
+				} catch (e) {
+					notify('info', `vicky: file importance analysis skipped (${e.message}). Continuing with pending queue.`);
+				}
+
+				// Phase 2: Drain pending queue
 				const wf = load_workflow();
 				const triage = wf.default_workflow === 'triage';
 				const prio_rank = p => (p === 'high' ? 0 : p === 'med' ? 1 : 2);

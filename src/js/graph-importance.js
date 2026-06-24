@@ -79,13 +79,32 @@ export async function analyzeFileImportance(limit = 30) {
 			console.warn('[vicky] Grep analysis failed, using AST data only');
 		}
 
-		// Score files: AST nodes + grep frequency + edges
+		// Git commit frequency analysis
+		console.log('[vicky] Git history analysis...');
+		const gitCounts = {};
+		try {
+			const root = fs.root();
+			const cmd = `cd "${root}" && git log --name-only --pretty=format: | sort | uniq -c | sort -rn | head -100`;
+			const output = execSync(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+
+			for (const line of output.split('\n')) {
+				const match = line.trim().match(/^(\d+)\s+(.+)$/);
+				if (match && match[2]) {
+					gitCounts[match[2]] = parseInt(match[1]);
+				}
+			}
+		} catch (e) {
+			console.warn('[vicky] Git analysis skipped (not a git repo or access issue)');
+		}
+
+		// Score files: AST nodes + grep frequency + git commits + edges
 		const scored = Object.entries(fileInfo).map(([file, info]) => ({
 			file,
 			ast_score: info.ast_nodes * 10,
 			grep_score: grepCounts[file] || 0,
+			git_score: gitCounts[file] || 0,
 			reference_score: info.references * 5,
-			total_score: (info.ast_nodes * 10) + (grepCounts[file] || 0) + (info.references * 5),
+			total_score: (info.ast_nodes * 10) + (grepCounts[file] || 0) + (gitCounts[file] || 0) + (info.references * 5),
 			language: info.language,
 		}));
 
